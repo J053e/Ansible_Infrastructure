@@ -1,0 +1,38 @@
+- name: Baseline and security for all hosts
+  hosts: all
+  become: true
+  roles:
+    - baseline
+    - firewalld
+    - selinux
+
+- name: Configure HAProxy node
+  hosts: haproxies
+  become: true
+  roles:
+    - haproxy
+    - keepalived
+
+- name: Configure database cluster
+  hosts: db
+  become: true
+  roles:
+    - mariadb_galera
+
+- name: Configure MaxScale
+  hosts: maxscales
+  become: true
+  roles:
+    - maxscale
+
+- name: Configure GLPI web servers
+  hosts: web
+  become: true
+  roles:
+    - glpi_web
+
+- name: Run validation checks
+  hosts: all
+  become: true
+  roles:
+    - validation

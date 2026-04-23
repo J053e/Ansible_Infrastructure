@@ -1,0 +1,25 @@
+- name: Stop MariaDB on all DB nodes before bootstrap
+  hosts: db
+  become: true
+  tasks:
+    - name: Stop MariaDB
+      service:
+        name: mariadb
+        state: stopped
+      failed_when: false
+
+- name: Bootstrap Galera cluster from db1
+  hosts: db1
+  become: true
+  tasks:
+    - name: Force safe_to_bootstrap to 1
+      lineinfile:
+        path: /var/lib/mysql/grastate.dat
+        regexp: '^safe_to_bootstrap:'
+        line: 'safe_to_bootstrap: 1'
+      failed_when: false
+
+    - name: Bootstrap cluster
+      command: galera_new_cluster
+      register: galera_bootstrap
+      changed_when: galera_bootstrap.rc == 0

@@ -1,0 +1,100 @@
+- name: Install Apache, PHP and dependencies for GLPI
+  package:
+    name:
+      - httpd
+      - php
+      - php-cli
+      - php-common
+      - php-curl
+      - php-gd
+      - php-intl
+      - php-ldap
+      - php-mbstring
+      - php-mysqlnd
+      - php-opcache
+      - php-pecl-zip
+      - php-process
+      - php-xml
+      - php-json
+      - php-bcmath
+      - tar
+      - gzip
+      - wget
+    state: present
+
+- name: Ensure Apache is enabled and running
+  service:
+    name: httpd
+    state: started
+    enabled: true
+
+- name: Ensure GLPI parent directory exists
+  file:
+    path: /var/www
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy config_db.php from template
+  template:
+    src: config_db.php.j2
+    dest: /var/www/glpi/config/config_db.php
+    owner: apache
+    group: apache
+    mode: "0640"
+  notify: restart httpd
+
+- name: Ensure GLPI files are owned by apache
+  file:
+    path: /var/www/glpi
+    state: directory
+    recurse: true
+    owner: apache
+    group: apache
+  failed_when: false
+
+- name: Ensure Apache DocumentRoot points to GLPI public directory
+  lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^DocumentRoot '
+    line: 'DocumentRoot "/var/www/glpi/public"'
+  notify: restart httpd
+
+- name: Ensure Apache directory block for GLPI exists
+  blockinfile:
+    path: /etc/httpd/conf/httpd.conf
+    marker: "# {mark} ANSIBLE GLPI DIRECTORY"
+    block: |
+      <Directory "/var/www/glpi/public">
+          AllowOverride All
+          Require all granted
+      </Directory>
+  notify: restart httpd
+
+- name: Enable HTTP service in firewalld
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Enable SELinux boolean for DB connectivity
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect_db
+    state: true
+    persistent: true
+
+- name: Enable SELinux boolean for network connectivity
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+
+- name: Restore SELinux context on GLPI tree
+  command: restorecon -R /var/www/glpi
+  changed_when: false
+
+- name: Restore SELinux context on Apache config
+  command: restorecon -R /etc/httpd
+  changed_when: false

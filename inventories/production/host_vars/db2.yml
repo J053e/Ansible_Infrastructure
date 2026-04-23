@@ -1,0 +1,7 @@
+hostname_short: db2
+
+mgmt_ip: 192.168.164.31
+db_ip: 192.168.166.31
+
+mgmt_interface: ens192
+db_interface: ens224

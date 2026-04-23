@@ -1,0 +1,5 @@
+haproxy_public_ip: 172.24.133.166
+haproxy_vip: 172.24.133.164
+haproxy_backends:
+  - { name: web1, ip: 192.168.165.20, port: 80 }
+  - { name: web2, ip: 192.168.165.21, port: 80 }

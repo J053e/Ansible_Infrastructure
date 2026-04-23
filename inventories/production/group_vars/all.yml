@@ -1,0 +1,26 @@
+timezone: America/Costa_Rica
+
+glpi_db_name: glpidb
+glpi_db_user: glpi
+glpi_db_password: Glpi123!
+
+maxscale_monitor_user: maxuser
+maxscale_monitor_password: Maxscale123!
+
+maxscale_service_user: maxuser
+maxscale_service_password: Maxscale123!
+
+haproxy_vip: 172.24.133.164
+
+public_gateway: 172.24.133.1
+dns_servers:
+  - 163.178.88.2
+  - 163.178.88.4
+
+galera_cluster_name: glpi_cluster
+galera_nodes:
+  - 192.168.166.30
+  - 192.168.166.31
+
+galera_sst_user: sstuser
+galera_sst_password: sstpassword

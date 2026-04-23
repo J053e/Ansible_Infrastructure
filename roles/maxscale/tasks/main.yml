@@ -1,0 +1,47 @@
+- name: Install MaxScale
+  package:
+    name: maxscale
+    state: present
+
+- name: Ensure log and data directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: maxscale
+    group: maxscale
+    mode: "0755"
+  loop:
+    - /var/log/maxscale
+    - /var/lib/maxscale
+
+- name: Deploy MaxScale config
+  template:
+    src: maxscale.cnf.j2
+    dest: /etc/maxscale.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart maxscale
+
+- name: Open MaxScale port
+  ansible.posix.firewalld:
+    port: 4006/tcp
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Enable MaxScale
+  service:
+    name: maxscale
+    state: started
+    enabled: true
+
+- name: Restore SELinux context on MaxScale config file
+  command: restorecon /etc/maxscale.cnf
+  changed_when: false
+  failed_when: false
+
+- name: Restore SELinux context on MaxScale log and data directories
+  command: restorecon -R /var/log/maxscale /var/lib/maxscale
+  changed_when: false
+  failed_when: false

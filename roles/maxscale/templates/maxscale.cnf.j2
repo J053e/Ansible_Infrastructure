@@ -1,0 +1,35 @@
+[maxscale]
+threads=auto
+
+[db1]
+type=server
+address={{ galera_nodes[0] }}
+port=3306
+protocol=MariaDBBackend
+
+[db2]
+type=server
+address={{ galera_nodes[1] }}
+port=3306
+protocol=MariaDBBackend
+
+[MariaDB-Monitor]
+type=monitor
+module=mariadbmon
+servers=db1,db2
+user={{ maxscale_monitor_user }}
+password={{ maxscale_monitor_password }}
+monitor_interval=2000ms
+
+[glpi-service]
+type=service
+router=readwritesplit
+servers=db1,db2
+user={{ maxscale_service_user }}
+password={{ maxscale_service_password }}
+
+[glpi-listener]
+type=listener
+service=glpi-service
+protocol=MariaDBClient
+port=4006

@@ -1,0 +1,9 @@
+- name: Start remaining Galera nodes
+  hosts: db:!db1
+  become: true
+  tasks:
+    - name: Start MariaDB normally
+      service:
+        name: mariadb
+        state: started
+        enabled: true

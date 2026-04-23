@@ -1,0 +1,75 @@
+- name: Install MariaDB and Galera packages
+  package:
+    name:
+      - mariadb-server
+      - galera
+      - rsync
+      - policycoreutils-python-utils
+      - checkpolicy
+    state: present
+
+- name: Ensure MariaDB config directory exists
+  file:
+    path: /etc/my.cnf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy Galera config
+  template:
+    src: galera.cnf.j2
+    dest: /etc/my.cnf.d/galera.cnf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Open MariaDB and Galera ports
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - 3306/tcp
+    - 4567/tcp
+    - 4567/udp
+    - 4568/tcp
+    - 4444/tcp
+
+- name: Check if 4444/tcp is labeled as rsync_port_t
+  shell: semanage port -l | awk '/^rsync_port_t/ && /4444/ {found=1} END {exit(found?0:1)}'
+  register: rsync_port_label
+  changed_when: false
+  failed_when: false
+
+- name: Label 4444/tcp as rsync_port_t
+  command: semanage port -a -t rsync_port_t -p tcp 4444
+  when: rsync_port_label.rc != 0
+
+- name: Copy local SELinux module for Galera SST
+  copy:
+    src: galera_ss.pp
+    dest: /root/galera_ss.pp
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Check installed SELinux modules
+  command: semodule -l
+  register: semodule_list
+  changed_when: false
+
+- name: Install local SELinux module for Galera SST
+  command: semodule -i /root/galera_ss.pp
+  when: "'galera_ss' not in semodule_list.stdout"
+
+- name: Ensure MariaDB is enabled
+  service:
+    name: mariadb
+    enabled: true
+
+- name: Restore SELinux context on MariaDB datadir
+  command: restorecon -R /var/lib/mysql
+  changed_when: false
+  failed_when: false

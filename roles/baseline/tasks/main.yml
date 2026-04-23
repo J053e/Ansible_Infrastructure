@@ -1,0 +1,76 @@
+- name: Set hostname
+  hostname:
+    name: "{{ hostname_short | default(inventory_hostname) }}"
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Ensure baseline packages are installed
+  package:
+    name:
+      - nano
+      - vim
+      - curl
+      - wget
+      - bash-completion
+      - firewalld
+      - policycoreutils
+      - policycoreutils-python-utils
+      - setools-console
+      - python3-libselinux
+      - python3-libsemanage
+      - rsync
+      - tar
+      - unzip
+      - git
+      - nmap
+    state: present
+
+- name: Ensure firewalld is enabled and running
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Ensure /etc/hosts contains infrastructure names
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE INFRA HOSTS"
+    block: |
+      192.168.164.1 admin-nat
+      192.168.164.10 haproxy
+      192.168.164.20 web1
+      192.168.164.21 web2
+      192.168.164.30 db1
+      192.168.164.31 db2
+      192.168.164.40 maxscale
+      192.168.164.50 ansible-control
+
+- name: Ensure root SSH directory exists
+  file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Ensure root authorized_keys exists
+  copy:
+    dest: /root/.ssh/authorized_keys
+    content: ""
+    force: false
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Restore SELinux context on root SSH files
+  command: restorecon -R /root/.ssh
+  changed_when: false
+  failed_when: false
+
+- name: Ensure sshd is enabled and running
+  service:
+    name: sshd
+    state: started
+    enabled: true

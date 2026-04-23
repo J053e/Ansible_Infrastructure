@@ -1,0 +1,9 @@
+hostname_short: web1
+
+mgmt_ip: 192.168.164.20
+app_ip: 192.168.165.20
+db_ip: 192.168.166.20
+
+mgmt_interface: ens192
+app_interface: ens224
+db_interface: ens256

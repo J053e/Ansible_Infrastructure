@@ -1,0 +1,29 @@
+- name: Configure MariaDB users and grants on db1
+  hosts: db1
+  become: true
+  tasks:
+    - name: Wait for MariaDB socket
+      wait_for:
+        path: /var/lib/mysql/mysql.sock
+        timeout: 60
+
+    - name: Configure SST, MaxScale and GLPI users
+      shell: |
+        mariadb <<'SQL'
+        CREATE USER IF NOT EXISTS '{{ galera_sst_user }}'@'%' IDENTIFIED BY '{{ galera_sst_password }}';
+        ALTER USER '{{ galera_sst_user }}'@'%' IDENTIFIED BY '{{ galera_sst_password }}';
+        GRANT RELOAD, LOCK TABLES, PROCESS, REPLICATION CLIENT ON *.* TO '{{ galera_sst_user }}'@'%';
+
+        CREATE USER IF NOT EXISTS '{{ maxscale_monitor_user }}'@'%' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+        ALTER USER '{{ maxscale_monitor_user }}'@'%' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+        GRANT ALL PRIVILEGES ON *.* TO '{{ maxscale_monitor_user }}'@'%' WITH GRANT OPTION;
+
+        CREATE USER IF NOT EXISTS '{{ glpi_db_user }}'@'%' IDENTIFIED BY '{{ glpi_db_password }}';
+        ALTER USER '{{ glpi_db_user }}'@'%' IDENTIFIED BY '{{ glpi_db_password }}';
+        GRANT ALL PRIVILEGES ON {{ glpi_db_name }}.* TO '{{ glpi_db_user }}'@'%';
+
+        FLUSH PRIVILEGES;
+        SQL
+      args:
+        executable: /bin/bash
+      changed_when: false

@@ -1,0 +1,7 @@
+hostname_short: maxscale
+
+mgmt_ip: 192.168.164.40
+db_ip: 192.168.166.40
+
+mgmt_interface: ens192
+db_interface: ens224

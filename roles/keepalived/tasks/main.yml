@@ -1,0 +1,23 @@
+- name: Install keepalived
+  package:
+    name: keepalived
+    state: present
+
+- name: Deploy keepalived config
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart keepalived
+
+- name: Enable keepalived
+  service:
+    name: keepalived
+    state: started
+    enabled: true
+
+- name: Restore SELinux context on keepalived config
+  command: restorecon -R /etc/keepalived
+  changed_when: false

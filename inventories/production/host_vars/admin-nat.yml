@@ -1,0 +1,14 @@
+hostname_short: admin-nat
+
+mgmt_ip: 192.168.164.1
+public_ip: 172.24.133.167
+
+mgmt_interface: ens224
+public_interface: ens192
+
+public_gateway: 172.24.133.1
+dns_servers:
+  - 163.178.88.2
+  - 163.178.88.4
+
+is_router: true

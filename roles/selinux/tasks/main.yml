@@ -1,0 +1,53 @@
+- name: Ensure SELinux packages are installed
+  package:
+    name:
+      - policycoreutils
+      - policycoreutils-python-utils
+      - setools-console
+      - checkpolicy
+      - python3-libselinux
+      - python3-libsemanage
+    state: present
+
+- name: Ensure SELinux is enforcing
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing
+
+- name: Allow Apache to connect to database over network
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect_db
+    state: true
+    persistent: true
+  when: "'web' in group_names"
+
+- name: Allow Apache general network connections
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+  when: "'web' in group_names"
+
+- name: Restore SELinux context on GLPI tree if present
+  command: restorecon -R /var/www/glpi
+  changed_when: false
+  failed_when: false
+  when: "'web' in group_names"
+
+- name: Restore SELinux context on Apache config
+  command: restorecon -R /etc/httpd
+  changed_when: false
+  failed_when: false
+  when: "'web' in group_names"
+
+- name: Restore SELinux context on MariaDB datadir
+  command: restorecon -R /var/lib/mysql
+  changed_when: false
+  failed_when: false
+  when: "'db' in group_names"
+
+- name: Restore SELinux context on MaxScale config
+  command: restorecon -R /etc/maxscale
+  changed_when: false
+  failed_when: false
+  when: "'maxscales' in group_names"

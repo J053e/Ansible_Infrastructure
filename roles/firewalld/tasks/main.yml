@@ -1,0 +1,62 @@
+- name: Ensure firewalld package is present
+  package:
+    name: firewalld
+    state: present
+
+- name: Ensure firewalld service is enabled and running
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Open SSH service on all hosts
+  ansible.posix.firewalld:
+    service: ssh
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Open HTTP on web servers
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+  when: "'web' in group_names"
+
+- name: Open HTTP on haproxy
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+  when: "'haproxies' in group_names"
+
+- name: Open MariaDB port on database servers
+  ansible.posix.firewalld:
+    port: 3306/tcp
+    permanent: true
+    state: enabled
+    immediate: true
+  when: "'db' in group_names"
+
+- name: Open Galera replication ports on database servers
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - 4567/tcp
+    - 4567/udp
+    - 4568/tcp
+    - 4444/tcp
+  when: "'db' in group_names"
+
+- name: Open MaxScale listener port
+  ansible.posix.firewalld:
+    port: 4006/tcp
+    permanent: true
+    state: enabled
+    immediate: true
+  when: "'maxscales' in group_names"
