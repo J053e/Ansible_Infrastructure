@@ -1,0 +1,13 @@
+
+module galera_donor_rsync 1.0;
+
+require {
+	type mysqld_t;
+	type rsync_port_t;
+	class tcp_socket name_connect;
+}
+
+#============= mysqld_t ==============
+
+#!!!! This avc is allowed in the current policy
+allow mysqld_t rsync_port_t:tcp_socket name_connect;

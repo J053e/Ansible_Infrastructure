@@ -47,7 +47,7 @@
   command: semanage port -a -t rsync_port_t -p tcp 4444
   when: rsync_port_label.rc != 0
 
-- name: Copy local SELinux module for Galera SST
+- name: Copy local SELinux module for Galera joiner SST
   copy:
     src: galera_ss.pp
     dest: /root/galera_ss.pp
@@ -55,21 +55,28 @@
     group: root
     mode: "0600"
 
-- name: Check installed SELinux modules
+- name: Copy local SELinux module for Galera donor rsync
+  copy:
+    src: galera_donor_rsync.pp
+    dest: /root/galera_donor_rsync.pp
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Read installed SELinux modules
   command: semodule -l
   register: semodule_list
   changed_when: false
+  failed_when: false
+
+- name: Ensure semodule_list always has stdout
+  set_fact:
+    semodule_list_stdout: "{{ semodule_list.stdout | default('') }}"
 
 - name: Install local SELinux module for Galera SST
   command: semodule -i /root/galera_ss.pp
-  when: "'galera_ss' not in semodule_list.stdout"
+  when: "'galera_ss' not in semodule_list_stdout"
 
-- name: Ensure MariaDB is enabled
-  service:
-    name: mariadb
-    enabled: true
-
-- name: Restore SELinux context on MariaDB datadir
-  command: restorecon -R /var/lib/mysql
-  changed_when: false
-  failed_when: false
+- name: Install local SELinux module for Galera donor rsync
+  command: semodule -i /root/galera_donor_rsync.pp
+  when: "'galera_donor_rsync' not in semodule_list_stdout"
