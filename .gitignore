@@ -1,0 +1,15 @@
+*.retry
+*.pyc
+__pycache__/
+.vscode/
+.idea/
+
+*.tar
+/root/*.tar
+
+.vault_pass*
+*.vaultpass
+*.vault-password*
+
+inventories/production/group_vars/all/vault.yml.dec
+inventories/production/group_vars/all/vault.plain.yml

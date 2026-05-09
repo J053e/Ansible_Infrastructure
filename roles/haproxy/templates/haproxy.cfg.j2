@@ -2,23 +2,26 @@ global
     log /dev/log local0
     log /dev/log local1 notice
     daemon
-    maxconn 2048
+    maxconn 4096
+    user haproxy
+    group haproxy
 
 defaults
     log     global
     mode    http
     option  httplog
     option  dontlognull
+    retries 3
     timeout connect 5s
-    timeout client  50s
-    timeout server  50s
+    timeout client  30s
+    timeout server  30s
 
 frontend http_front
-    bind {{ haproxy_vip }}:80
+    bind *:80
     default_backend glpi_back
 
 backend glpi_back
     balance roundrobin
-{% for backend in haproxy_backends %}
-    server {{ backend.name }} {{ backend.ip }}:{{ backend.port }} check
-{% endfor %}
+    option httpchk GET /
+    http-check expect status 200
+    server glpi_app {{ hostvars['ctr-host1'].app_ip }}:{{ podman_glpi_publish_port }} check

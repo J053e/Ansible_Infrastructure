@@ -1,30 +1,38 @@
+---
 - name: Install HAProxy
-  package:
+  ansible.builtin.dnf:
     name: haproxy
     state: present
 
-- name: Deploy HAProxy config
-  template:
+- name: Ensure firewalld is enabled and running on haproxy
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Deploy HAProxy config with validation
+  ansible.builtin.template:
     src: haproxy.cfg.j2
     dest: /etc/haproxy/haproxy.cfg
     owner: root
     group: root
     mode: "0644"
+    validate: "haproxy -c -f %s"
   notify: restart haproxy
 
 - name: Enable HAProxy service
-  service:
+  ansible.builtin.systemd:
     name: haproxy
-    state: started
     enabled: true
 
 - name: Open HTTP on firewalld
   ansible.posix.firewalld:
+    zone: "{{ public_zone }}"
     service: http
     permanent: true
-    state: enabled
     immediate: true
+    state: enabled
 
 - name: Restore SELinux context on HAProxy config
-  command: restorecon -R /etc/haproxy
+  ansible.builtin.command: restorecon -v /etc/haproxy/haproxy.cfg
   changed_when: false

@@ -3,13 +3,13 @@ threads=auto
 
 [db1]
 type=server
-address={{ galera_nodes[0] }}
+address={{ hostvars['db1'].db_ip }}
 port=3306
 protocol=MariaDBBackend
 
 [db2]
 type=server
-address={{ galera_nodes[1] }}
+address={{ hostvars['db2'].db_ip }}
 port=3306
 protocol=MariaDBBackend
 
@@ -19,17 +19,17 @@ module=mariadbmon
 servers=db1,db2
 user={{ maxscale_monitor_user }}
 password={{ maxscale_monitor_password }}
-monitor_interval=2000ms
+monitor_interval=2s
 
 [glpi-service]
 type=service
 router=readwritesplit
 servers=db1,db2
-user={{ maxscale_service_user }}
-password={{ maxscale_service_password }}
+user={{ glpi_db_user }}
+password={{ glpi_db_password }}
 
 [glpi-listener]
 type=listener
 service=glpi-service
 protocol=MariaDBClient
-port=4006
+port={{ maxscale_rw_port }}

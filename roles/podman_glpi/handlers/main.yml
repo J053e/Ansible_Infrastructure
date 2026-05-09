@@ -1,0 +1,10 @@
+---
+- name: systemd daemon-reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: restart glpi container
+  ansible.builtin.systemd:
+    name: container-glpi-app.service
+    state: restarted
+    enabled: true

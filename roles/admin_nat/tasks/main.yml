@@ -1,0 +1,48 @@
+---
+- name: Install packages required on admin-nat
+  ansible.builtin.dnf:
+    name:
+      - firewalld
+      - tcpdump
+      - curl
+      - rsync
+      - policycoreutils-python-utils
+    state: present
+
+- name: Ensure firewalld is enabled and running on admin-nat
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Ensure SSH service is enabled and running on admin-nat
+  ansible.builtin.systemd:
+    name: sshd
+    enabled: true
+    state: started
+
+- name: Ensure public interface is assigned to public zone on admin-nat
+  ansible.builtin.command: "nmcli connection modify {{ admin_nat_public_connection_name }} connection.zone {{ admin_nat_public_zone }}"
+  changed_when: false
+  failed_when: false
+
+- name: Ensure management interface is assigned to internal zone on admin-nat
+  ansible.builtin.command: "nmcli connection modify {{ admin_nat_mgmt_connection_name }} connection.zone {{ admin_nat_mgmt_zone }}"
+  changed_when: false
+  failed_when: false
+
+- name: Allow SSH on admin-nat public zone
+  ansible.posix.firewalld:
+    zone: "{{ admin_nat_public_zone }}"
+    service: ssh
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow SSH on admin-nat management zone
+  ansible.posix.firewalld:
+    zone: "{{ admin_nat_mgmt_zone }}"
+    service: ssh
+    permanent: true
+    immediate: true
+    state: enabled

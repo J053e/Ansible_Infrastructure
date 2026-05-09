@@ -1,0 +1,33 @@
+timezone: America/Costa_Rica
+
+ansible_ssh_private_key_file: /root/.ssh/ansible_lab
+ansible_ssh_common_args: "-o IdentitiesOnly=yes"
+
+mariadb_root_user: "{{ vault_mariadb_root_user }}"
+mariadb_root_password: "{{ vault_mariadb_root_password }}"
+
+maxscale_monitor_user: "{{ vault_maxscale_monitor_user }}"
+maxscale_monitor_password: "{{ vault_maxscale_monitor_password }}"
+
+glpi_db_name: glpidb
+glpi_db_user: "{{ vault_glpi_db_user }}"
+glpi_db_password: "{{ vault_glpi_db_password }}"
+
+galera_sst_user: "{{ vault_galera_sst_user }}"
+galera_sst_password: "{{ vault_galera_sst_password }}"
+
+maxscale_rw_port: 4006
+
+galera_cluster_name: glpi_galera
+galera_nodes:
+  - "{{ hostvars['db1'].db_ip }}"
+  - "{{ hostvars['db2'].db_ip }}"
+
+podman_glpi_image: docker.io/glpi/glpi:10.0.24
+podman_glpi_container_name: glpi-app
+podman_glpi_publish_port: 8080
+podman_glpi_data_dir: /srv/containers/glpi-data
+podman_glpi_env_file: /etc/glpi-app.env
+podman_glpi_secret_name: glpi_db_password
+podman_glpi_secret_checksum_file: /etc/glpi-app.secret.sha256
+podman_glpi_systemd_unit: /etc/systemd/system/container-glpi-app.service

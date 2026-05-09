@@ -1,0 +1,108 @@
+---
+- name: Install required packages on ctr-host1
+  ansible.builtin.dnf:
+    name:
+      - podman
+      - curl
+      - rsync
+      - firewalld
+      - policycoreutils-python-utils
+    state: present
+
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Ensure GLPI data directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ podman_glpi_data_dir }}"
+    - "{{ podman_glpi_data_dir }}/config"
+    - "{{ podman_glpi_data_dir }}/files"
+    - "{{ podman_glpi_data_dir }}/marketplace"
+
+- name: Allow HAProxy to reach the GLPI published port
+  ansible.posix.firewalld:
+    zone: "{{ app_zone }}"
+    rich_rule: 'rule family="ipv4" source address="{{ hostvars["haproxy"].app_ip }}/32" port port="{{ podman_glpi_publish_port }}" protocol="tcp" accept'
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Calculate desired GLPI DB password checksum
+  ansible.builtin.set_fact:
+    glpi_db_password_checksum: "{{ glpi_db_password | hash('sha256') }}"
+  no_log: true
+
+- name: Read current deployed Podman secret checksum if present
+  ansible.builtin.slurp:
+    src: "{{ podman_glpi_secret_checksum_file }}"
+  register: glpi_secret_checksum_file
+  failed_when: false
+  no_log: true
+
+- name: Set current deployed Podman secret checksum fact
+  ansible.builtin.set_fact:
+    glpi_secret_checksum_current: "{{ (glpi_secret_checksum_file.content | b64decode | trim) if (glpi_secret_checksum_file is defined and glpi_secret_checksum_file.content is defined) else '' }}"
+  no_log: true
+
+- name: Remove existing Podman secret when password changed
+  ansible.builtin.command: "podman secret rm {{ podman_glpi_secret_name }}"
+  when: glpi_secret_checksum_current != glpi_db_password_checksum
+  failed_when: false
+  changed_when: glpi_secret_checksum_current != glpi_db_password_checksum
+  no_log: true
+  notify: restart glpi container
+
+- name: Create Podman secret when password changed
+  ansible.builtin.shell: |
+    printf '%s' "$GLPI_DB_PASSWORD" | podman secret create {{ podman_glpi_secret_name }} -
+  args:
+    executable: /bin/bash
+  environment:
+    GLPI_DB_PASSWORD: "{{ glpi_db_password }}"
+  when: glpi_secret_checksum_current != glpi_db_password_checksum
+  changed_when: glpi_secret_checksum_current != glpi_db_password_checksum
+  no_log: true
+  notify: restart glpi container
+
+- name: Persist deployed Podman secret checksum
+  ansible.builtin.copy:
+    dest: "{{ podman_glpi_secret_checksum_file }}"
+    content: "{{ glpi_db_password_checksum }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  when: glpi_secret_checksum_current != glpi_db_password_checksum
+  no_log: true
+
+- name: Render GLPI environment file without password
+  ansible.builtin.template:
+    src: glpi-app.env.j2
+    dest: "{{ podman_glpi_env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart glpi container
+
+- name: Render systemd service for GLPI container
+  ansible.builtin.template:
+    src: container-glpi-app.service.j2
+    dest: "{{ podman_glpi_systemd_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart glpi container
+
+- name: Ensure GLPI container service is enabled and started
+  ansible.builtin.systemd:
+    name: container-glpi-app.service
+    enabled: true
+    state: started
+    daemon_reload: true

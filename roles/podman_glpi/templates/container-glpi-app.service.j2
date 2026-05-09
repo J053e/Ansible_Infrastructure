@@ -1,0 +1,22 @@
+[Unit]
+Description=GLPI application container
+Wants=network-online.target
+After=network-online.target
+After=firewalld.service
+Requires=firewalld.service
+
+[Service]
+EnvironmentFile={{ podman_glpi_env_file }}
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/podman stop -t 10 {{ podman_glpi_container_name }}
+ExecStartPre=-/usr/bin/podman rm -f {{ podman_glpi_container_name }}
+ExecStartPre=/usr/bin/podman create --name {{ podman_glpi_container_name }} --replace -p {{ podman_glpi_publish_port }}:80 -v {{ podman_glpi_data_dir }}:/var/glpi:Z,U --env-file {{ podman_glpi_env_file }} --secret {{ podman_glpi_secret_name }},type=env,target=GLPI_DB_PASSWORD {{ podman_glpi_image }}
+ExecStart=/usr/bin/podman start -a {{ podman_glpi_container_name }}
+ExecStop=/usr/bin/podman stop -t 10 {{ podman_glpi_container_name }}
+ExecStopPost=-/usr/bin/podman rm -f {{ podman_glpi_container_name }}
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
