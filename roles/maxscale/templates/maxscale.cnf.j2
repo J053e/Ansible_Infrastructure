@@ -25,8 +25,8 @@ monitor_interval=2s
 type=service
 router=readwritesplit
 servers=db1,db2
-user={{ glpi_db_user }}
-password={{ glpi_db_password }}
+user={{ maxscale_monitor_user }}
+password={{ maxscale_monitor_password }}
 
 [glpi-listener]
 type=listener

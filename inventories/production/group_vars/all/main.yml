@@ -31,3 +31,21 @@ podman_glpi_env_file: /etc/glpi-app.env
 podman_glpi_secret_name: glpi_db_password
 podman_glpi_secret_checksum_file: /etc/glpi-app.secret.sha256
 podman_glpi_systemd_unit: /etc/systemd/system/container-glpi-app.service
+
+wikijs_public_host: wiki.lab
+wikijs_image: ghcr.io/requarks/wiki:2
+wikijs_container_name: wikijs-app
+wikijs_publish_port: 8082
+wikijs_env_file: /etc/wikijs.env
+wikijs_secret_name: wikijs_db_pass
+wikijs_secret_checksum_file: /etc/wikijs_db_pass.sha256
+wikijs_systemd_unit: /etc/systemd/system/container-wikijs.service
+wikijs_bootstrap_dir: /srv/containers/wikijs/bootstrap
+
+wikijs_db_name: wikijsdb
+wikijs_db_user: "{{ vault_wikijs_db_user }}"
+wikijs_db_password: "{{ vault_wikijs_db_password }}"
+
+wikijs_memory: 512m
+wikijs_cpus: "1.0"
+wikijs_pids_limit: 256

@@ -1,4 +1,6 @@
+---
 - name: restart maxscale
-  service:
+  ansible.builtin.systemd:
     name: maxscale
     state: restarted
+    enabled: true

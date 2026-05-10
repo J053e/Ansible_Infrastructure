@@ -31,6 +31,21 @@
   changed_when: false
   failed_when: false
 
+- name: Enable IPv4 forwarding persistently
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    reload: true
+
+- name: Enable masquerade on public zone
+  ansible.posix.firewalld:
+    zone: "{{ admin_nat_public_zone }}"
+    masquerade: true
+    permanent: true
+    immediate: true
+    state: enabled
+
 - name: Allow SSH on admin-nat public zone
   ansible.posix.firewalld:
     zone: "{{ admin_nat_public_zone }}"
@@ -43,6 +58,14 @@
   ansible.posix.firewalld:
     zone: "{{ admin_nat_mgmt_zone }}"
     service: ssh
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow forward from management zone
+  ansible.posix.firewalld:
+    zone: "{{ admin_nat_mgmt_zone }}"
+    forward: true
     permanent: true
     immediate: true
     state: enabled

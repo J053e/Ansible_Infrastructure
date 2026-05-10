@@ -20,6 +20,13 @@
   roles:
     - mariadb_galera
 
+- name: Configure application databases on Galera
+  hosts: db1
+  become: true
+  gather_facts: true
+  roles:
+    - mariadb_apps
+
 - name: Configure MaxScale
   hosts: database_proxies
   become: true
@@ -40,3 +47,10 @@
   gather_facts: true
   roles:
     - podman_glpi
+
+- name: Configure containerized Wiki.js host
+  hosts: container_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - podman_wikijs

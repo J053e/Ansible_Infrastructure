@@ -1,0 +1,22 @@
+[Unit]
+Description=Wiki.js application container
+Wants=network-online.target
+After=network-online.target
+After=firewalld.service
+Requires=firewalld.service
+
+[Service]
+EnvironmentFile={{ wikijs_env_file }}
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/podman stop -t 10 {{ wikijs_container_name }}
+ExecStartPre=-/usr/bin/podman rm -f {{ wikijs_container_name }}
+ExecStartPre=/usr/bin/podman create --name {{ wikijs_container_name }} --replace -p {{ wikijs_publish_port }}:3000 --memory {{ wikijs_memory }} --cpus {{ wikijs_cpus }} --pids-limit {{ wikijs_pids_limit }} --env-file {{ wikijs_env_file }} --secret {{ wikijs_secret_name }},target={{ wikijs_secret_name }} {{ wikijs_image }}
+ExecStart=/usr/bin/podman start -a {{ wikijs_container_name }}
+ExecStop=/usr/bin/podman stop -t 10 {{ wikijs_container_name }}
+ExecStopPost=-/usr/bin/podman rm -f {{ wikijs_container_name }}
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

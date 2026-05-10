@@ -18,6 +18,8 @@ defaults
 
 frontend http_front
     bind *:80
+    acl host_wikijs hdr(host),lower -i {{ wikijs_public_host | lower }} {{ wikijs_public_host | lower }}:80
+    use_backend wikijs_back if host_wikijs
     default_backend glpi_back
 
 backend glpi_back
@@ -25,3 +27,9 @@ backend glpi_back
     option httpchk GET /
     http-check expect status 200
     server glpi_app {{ hostvars['ctr-host1'].app_ip }}:{{ podman_glpi_publish_port }} check
+
+backend wikijs_back
+    balance roundrobin
+    option httpchk GET /
+    http-check expect status 200
+    server wikijs_app {{ hostvars['ctr-host1'].app_ip }}:{{ wikijs_publish_port }} check

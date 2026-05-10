@@ -10,6 +10,26 @@
     enabled: true
     state: started
 
+- name: Enable haproxy_connect_any SELinux boolean
+  ansible.builtin.command: setsebool -P haproxy_connect_any=1
+  changed_when: false
+
+- name: Ensure Wiki.js backend port is labeled http_port_t for SELinux
+  ansible.builtin.shell: |
+    if semanage port -l | grep -E '^http_port_t[[:space:]]+tcp' | grep -Eq '(^|[ ,]){{ wikijs_publish_port }}($|[ ,])'; then
+      echo already
+    elif semanage port -l | awk '$2=="tcp"{for(i=3;i<=NF;i++) print $i}' | tr ',' '\n' | sed 's/[[:space:]]//g' | grep -Fx "{{ wikijs_publish_port }}" >/dev/null; then
+      semanage port -m -t http_port_t -p tcp {{ wikijs_publish_port }}
+      echo modified
+    else
+      semanage port -a -t http_port_t -p tcp {{ wikijs_publish_port }}
+      echo added
+    fi
+  args:
+    executable: /bin/bash
+  register: wikijs_http_port_selinux
+  changed_when: "'added' in wikijs_http_port_selinux.stdout or 'modified' in wikijs_http_port_selinux.stdout"
+
 - name: Deploy HAProxy config with validation
   ansible.builtin.template:
     src: haproxy.cfg.j2

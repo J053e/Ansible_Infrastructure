@@ -1,0 +1,70 @@
+---
+- name: Ensure Wiki.js database and users exist on db1
+  ansible.builtin.shell: |
+    mariadb -u "$MARIADB_ROOT_USER" -p"$MARIADB_ROOT_PASSWORD" <<'SQL'
+    CREATE DATABASE IF NOT EXISTS `{{ wikijs_db_name }}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE USER IF NOT EXISTS '{{ wikijs_db_user }}'@'%' IDENTIFIED BY '{{ wikijs_db_password }}';
+    ALTER USER '{{ wikijs_db_user }}'@'%' IDENTIFIED BY '{{ wikijs_db_password }}';
+    GRANT ALL PRIVILEGES ON `{{ wikijs_db_name }}`.* TO '{{ wikijs_db_user }}'@'%';
+
+    CREATE USER IF NOT EXISTS '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ wikijs_db_password }}';
+    ALTER USER '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ wikijs_db_password }}';
+    GRANT ALL PRIVILEGES ON `{{ wikijs_db_name }}`.* TO '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+
+    GRANT SELECT ON mysql.user TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.db TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.tables_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.columns_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.procs_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.proxies_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.global_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+
+    FLUSH PRIVILEGES;
+    FLUSH HOSTS;
+    SQL
+  args:
+    executable: /bin/bash
+  environment:
+    MARIADB_ROOT_USER: "{{ mariadb_root_user }}"
+    MARIADB_ROOT_PASSWORD: "{{ mariadb_root_password }}"
+  no_log: true
+  changed_when: false
+  delegate_to: db1
+
+- name: Ensure Wiki.js database and users exist on db2
+  ansible.builtin.shell: |
+    mariadb -u "$MARIADB_ROOT_USER" -p"$MARIADB_ROOT_PASSWORD" <<'SQL'
+    CREATE DATABASE IF NOT EXISTS `{{ wikijs_db_name }}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE USER IF NOT EXISTS '{{ wikijs_db_user }}'@'%' IDENTIFIED BY '{{ wikijs_db_password }}';
+    ALTER USER '{{ wikijs_db_user }}'@'%' IDENTIFIED BY '{{ wikijs_db_password }}';
+    GRANT ALL PRIVILEGES ON `{{ wikijs_db_name }}`.* TO '{{ wikijs_db_user }}'@'%';
+
+    CREATE USER IF NOT EXISTS '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ wikijs_db_password }}';
+    ALTER USER '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ wikijs_db_password }}';
+    GRANT ALL PRIVILEGES ON `{{ wikijs_db_name }}`.* TO '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+
+    GRANT SELECT ON mysql.user TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.db TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.tables_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.columns_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.procs_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.proxies_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.global_priv TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+
+    FLUSH PRIVILEGES;
+    FLUSH HOSTS;
+    SQL
+  args:
+    executable: /bin/bash
+  environment:
+    MARIADB_ROOT_USER: "{{ mariadb_root_user }}"
+    MARIADB_ROOT_PASSWORD: "{{ mariadb_root_password }}"
+  no_log: true
+  changed_when: false
+  delegate_to: db2

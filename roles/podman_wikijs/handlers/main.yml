@@ -1,0 +1,10 @@
+---
+- name: systemd daemon-reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: restart wikijs container
+  ansible.builtin.systemd:
+    name: container-wikijs.service
+    state: restarted
+    enabled: true

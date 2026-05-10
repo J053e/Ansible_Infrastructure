@@ -1,0 +1,379 @@
+# Informe de infraestructura y decisiones técnicas
+
+## 1. Propósito de esta documentación
+
+Esta Wiki.js fue desplegada para centralizar el informe técnico, la justificación de decisiones, la trazabilidad de cambios y la documentación operativa del proyecto.
+
+El objetivo de esta wiki es ser el punto de consulta para:
+- arquitectura de infraestructura
+- decisiones de Ansible
+- decisiones de contenedorización
+- endurecimiento de seguridad
+- operación de GLPI
+- operación de Wiki.js
+- criterios de rollback y continuidad
+
+---
+
+## 2. Resumen
+
+La infraestructura final quedó compuesta por:
+- `admin-nat` como punto de administración
+- `haproxy` como frontend público
+- `db1` y `db2` como clúster MariaDB/Galera
+- `maxscale` como proxy de base de datos
+- `ctr-host1` como host de contenedores
+- `web1` y `web2` como legado fuera de operación
+
+Servicios expuestos:
+- GLPI: `http://172.24.133.164`
+- Wiki.js: `http://{{ wikijs_public_host }}`
+
+Se usa la misma IP pública/VIP para ambos servicios, diferenciándolos por `Host header` en HAProxy.
+
+---
+
+## 3. Topología de infraestructura
+
+### 3.1 Hosts principales
+
+- `admin-nat`
+  - red de gestión
+  - punto de entrada SSH administrativo
+
+- `haproxy`
+  - MGMT: `192.168.164.10`
+  - APP: `192.168.165.10`
+  - pública: `172.24.133.166`
+  - VIP pública: `172.24.133.164`
+
+- `db1`
+  - MGMT: `192.168.164.30`
+  - DB: `192.168.166.30`
+
+- `db2`
+  - MGMT: `192.168.164.31`
+  - DB: `192.168.166.31`
+
+- `maxscale`
+  - MGMT: `192.168.164.40`
+  - DB: `192.168.166.40`
+  - puerto de escritura/lectura para aplicaciones: `4006`
+
+- `ctr-host1`
+  - MGMT: `192.168.164.60`
+  - APP: `192.168.165.60`
+  - DB: `192.168.166.60`
+
+### 3.2 Hosts legados
+
+- `web1`
+- `web2`
+
+Ambos se mantienen en inventario únicamente como referencia histórica y para documentar la evolución de la infraestructura, pero ya no forman parte de la operación normal.
+
+---
+
+## 4. Decisiones tomadas en Ansible (`ansible-control`)
+
+### 4.1 Inventario y agrupación
+
+Se separó el inventario entre infraestructura activa y nodos legados:
+
+- `active_infra`
+  - `admin_nodes`
+  - `load_balancers`
+  - `database_cluster`
+  - `database_proxies`
+  - `container_hosts`
+
+- `legacy_offline`
+  - `web1`
+  - `web2`
+
+#### Justificación
+Esta decisión evita que los playbooks fallen por nodos apagados que ya no deben recibir configuración, pero conserva la referencia histórica de la topología original.
+
+### 4.2 Host Vars y Group Vars
+
+Se usa:
+- `group_vars/all/main.yml` para variables no secretas globales
+- `group_vars/all/vault.yml` para credenciales cifradas
+- `host_vars/admin-nat.yml` para variables específicas del host administrativo
+
+#### Justificación
+La separación entre variables comunes, variables sensibles y variables por host mejora legibilidad, reusabilidad y mantenimiento.
+
+### 4.3 Playbooks
+
+Se usa `playbooks/site.yml` como orquestador principal.
+
+#### Justificación
+Un único playbook de entrada facilita:
+- despliegue completo
+- reconfiguración
+- auditoría del orden de ejecución
+- repetibilidad de la infraestructura
+
+### 4.4 Roles
+
+La infraestructura se descompuso en roles:
+- `baseline`
+- `admin_nat`
+- `mariadb_galera`
+- `mariadb_apps`
+- `maxscale`
+- `haproxy`
+- `podman_glpi`
+- `podman_wikijs`
+
+#### Justificación
+La descomposición por rol reduce acoplamiento, facilita pruebas por componente y permite aplicar `--limit` por host o servicio cuando hay que depurar.
+
+### 4.5 Tasks
+
+Las tasks se diseñaron para buscar idempotencia real:
+- no se recrean secretos si el checksum no cambió
+- no se fuerzan ownerships que Podman cambia durante runtime
+- se valida la configuración de HAProxy antes de desplegarla
+- se desacopló la creación de bases de datos de la role del clúster
+
+#### Justificación
+Se priorizó evitar cambios falsos y reducir ruido en las corridas de Ansible.
+
+### 4.6 Modules
+
+Se usan principalmente módulos nativos de Ansible:
+- `template`
+- `copy`
+- `file`
+- `systemd`
+- `dnf`
+- `set_fact`
+- `slurp`
+- `shell` y `command` solo cuando fue necesario
+
+#### Justificación
+Se prefirió módulo nativo siempre que fuera posible para mantener consistencia, legibilidad y menor dependencia externa.
+
+### 4.7 Collections
+
+Se mantuvieron `ansible.posix` y el uso mínimo de collections adicionales.
+
+#### Justificación
+Se evitó depender excesivamente de collections externas para no aumentar complejidad de compatibilidad en el entorno de laboratorio.
+
+### 4.8 Ansible Vault
+
+Todas las credenciales del repo se movieron a Vault:
+- root MariaDB
+- monitor de MaxScale
+- usuario de GLPI
+- credenciales de SST de Galera
+- usuario de Wiki.js
+
+#### Justificación
+La meta fue eliminar credenciales en texto plano del repositorio y dejar solo referencias a variables vault.
+
+### 4.9 SELinux
+
+SELinux se mantuvo activo y se trataron explícitamente los casos donde sí había fricción:
+- módulos locales para SST/joiner y donor/rsync en Galera
+- contextos restaurados en rutas sensibles
+- volúmenes de contenedores con `:Z,U`
+
+#### Justificación
+La decisión fue no desactivar SELinux, sino adaptarlo a la infraestructura real.
+
+---
+
+## 5. Decisiones tomadas en `ctr-host1`
+
+### 5.1 Contenedorización de GLPI
+
+La versión final operativa de GLPI quedó en:
+- imagen oficial `docker.io/glpi/glpi:10.0.24`
+
+#### Justificación
+Fue la variante estable en runtime y la que respondió correctamente en producción detrás de HAProxy.
+
+### 5.2 Variantes probadas de GLPI
+
+Se probaron imágenes derivadas `glpi-custom` para endurecimiento.
+
+#### Resultado
+- `r2/r4`: mejoraron el escaneo de seguridad
+- `r3`: falló por problemas en runtime
+
+#### Problemas observados en la línea custom
+- Apache no pudo bindear correctamente el puerto interno
+- se eliminaron librerías necesarias para extensiones PHP
+- la compatibilidad con el upstream dejó de ser confiable
+
+#### Decisión final
+Se descartó la imagen custom como imagen productiva y se dejó la imagen oficial estable en producción.
+
+### 5.3 Seguridad aplicada a GLPI
+
+Después de correr Trivy y Dockle se tomaron estas decisiones:
+
+- no exponer GLPI directamente desde `ctr-host1`
+- publicar GLPI solo por HAProxy
+- dejar `8080` accesible solo desde la IP APP de HAProxy
+- mantener SELinux en `enforcing`
+- usar bind mount con `:Z,U`
+- pasar la contraseña de DB con `Podman secret`
+- mantener el contenedor administrado por `systemd`
+
+### 5.4 Razón para no dejar la imagen custom en producción
+
+Aunque la imagen derivada mejoró el conteo de vulnerabilidades, la prioridad final fue continuidad operativa y estabilidad del servicio real.
+
+---
+
+## 6. Decisiones tomadas para Wiki.js
+
+### 6.1 Publicación del servicio
+
+Wiki.js no se publica en `/wiki`.
+
+Se publica en:
+- `http://{{ wikijs_public_host }}`
+
+usando la misma IP pública/VIP del laboratorio, pero con routing por `Host header` en HAProxy.
+
+#### Justificación
+Se evitó el despliegue por subcarpeta porque:
+- complica rutas
+- complica cookies
+- complica soporte
+- no es la opción recomendada por el proyecto
+
+### 6.2 Acceso desde clientes
+
+En el cliente que vaya a consumir la wiki, se debe agregar:
+
+```text
+172.24.133.164 {{ wikijs_public_host }}
+```
+
+al archivo `hosts`, salvo que exista DNS interno para ese nombre.
+
+### 6.3 Motor de base de datos de Wiki.js
+
+Se decidió usar la infraestructura existente:
+- `DB_TYPE=mariadb`
+- `DB_HOST={{ hostvars['maxscale'].db_ip }}`
+- `DB_PORT={{ maxscale_rw_port }}`
+- `base de datos {{ wikijs_db_name }}`
+
+#### Justificación
+Aunque PostgreSQL sea la recomendación general del proyecto, reutilizar el clúster MariaDB/Galera + MaxScale ya operativo reduce infraestructura adicional, mantiene tolerancia a fallos en la capa de datos y simplifica operación.
+
+### 6.4 Imagen elegida para Wiki.js
+
+- `{{ wikijs_image }}`
+
+#### Justificación
+Se usa un tag mayor estable y no `latest`.
+
+### 6.5 Puertos
+
+- puerto interno Wiki.js: `3000`
+- puerto publicado en `ctr-host1`: `{{ wikijs_publish_port }}`
+- puerto público real: `80` a través de HAProxy
+
+### 6.6 Volúmenes
+
+Para Wiki.js no se montó un volumen de aplicación persistente como requisito de operación base, porque:
+
+- el contenido principal vive en la base de datos
+- el despliegue queda más simple
+- se reduce superficie de permisos en host
+
+Sí se genera un directorio de bootstrap para documentación:
+
+- `{{ wikijs_bootstrap_dir }}`
+
+#### Justificación
+Ese directorio sirve como fuente controlada de documentación inicial del proyecto.
+
+### 6.7 Recursos computacionales
+
+Se definieron límites explícitos:
+
+- memoria: `{{ wikijs_memory }}`
+- CPU: `{{ wikijs_cpus }}`
+- `pids-limit`: `{{ wikijs_pids_limit }}`
+
+#### Justificación
+
+Wiki.js es una herramienta auxiliar de documentación, no el servicio crítico del proyecto. Por eso se le asignaron límites moderados para no competir innecesariamente con GLPI y con la capa de datos.
+
+### 6.8 Secretos
+
+La contraseña de la BD de Wiki.js:
+
+- vive en Ansible Vault en el repo
+- se materializa en runtime como `Podman secret`
+- se entrega a Wiki.js por `DB_PASS_FILE`
+
+#### Justificación
+Se evita dejar credenciales en `.env` o en systemd unit files.
+
+---
+
+## 7. Decisiones de seguridad globales
+
+### 7.1 Frontend único
+
+Solo HAProxy expone servicios a clientes.
+
+### 7.2 Aislamiento de puertos internos
+
+- GLPI en `ctr-host1:8080` accesible solo desde HAProxy
+- Wiki.js en `ctr-host1:8082` accesible solo desde HAProxy
+
+### 7.3 Secretos
+
+- repo: Ansible Vault
+- runtime de contenedores: Podman secret
+
+### 7.4 SELinux
+
+Se mantuvo activo en toda la solución.
+
+### 7.5 Systemd
+
+Los contenedores se dejaron como servicios systemd para arranque automático y operación consistente post-reinicio.
+
+---
+
+## 8. Estado final de servicios
+
+### GLPI
+
+- URL: `http://172.24.133.164`
+- backend real: `ctr-host1:8080`
+- base de datos: MaxScale `{{ hostvars['maxscale'].db_ip }}:{{ maxscale_rw_port }}`
+
+### Wiki.js
+
+URL: `http://{{ wikijs_public_host }}`
+backend real: `ctr-host1:{{ wikijs_publish_port }}`
+base de datos: MaxScale `{{ hostvars['maxscale'].db_ip }}:{{ maxscale_rw_port }}`
+
+---
+
+## 9. Criterio de rollback
+
+Si Wiki.js fallara:
+
+- se puede detener solo `container-wikijs.service`
+- GLPI no se afecta
+- HAProxy puede retirar el backend `wikijs_back` sin tocar `glpi_back`
+
+Si GLPI fallara:
+
+- se mantiene separado de Wiki.js
+- no comparte puerto publicado ni servicio systemd

@@ -1,0 +1,110 @@
+---
+- name: Install required packages on ctr-host1 for Wiki.js
+  ansible.builtin.dnf:
+    name:
+      - podman
+      - curl
+      - firewalld
+      - policycoreutils-python-utils
+    state: present
+
+- name: Ensure firewalld is enabled and running for Wiki.js
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Ensure Wiki.js bootstrap directory exists
+  ansible.builtin.file:
+    path: "{{ wikijs_bootstrap_dir }}"
+    state: directory
+
+- name: Allow HAProxy to reach Wiki.js published port
+  ansible.posix.firewalld:
+    zone: "{{ app_zone }}"
+    rich_rule: 'rule family="ipv4" source address="{{ hostvars["haproxy"].app_ip }}/32" port port="{{ wikijs_publish_port }}" protocol="tcp" accept'
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Calculate desired Wiki.js DB password checksum
+  ansible.builtin.set_fact:
+    wikijs_db_password_checksum: "{{ wikijs_db_password | hash('sha256') }}"
+  no_log: true
+
+- name: Read current deployed Wiki.js Podman secret checksum if present
+  ansible.builtin.slurp:
+    src: "{{ wikijs_secret_checksum_file }}"
+  register: wikijs_secret_checksum_file_slurp
+  failed_when: false
+  no_log: true
+
+- name: Set current deployed Wiki.js Podman secret checksum fact
+  ansible.builtin.set_fact:
+    wikijs_secret_checksum_current: "{{ (wikijs_secret_checksum_file_slurp.content | b64decode | trim) if (wikijs_secret_checksum_file_slurp is defined and wikijs_secret_checksum_file_slurp.content is defined) else '' }}"
+  no_log: true
+
+- name: Remove existing Wiki.js Podman secret when password changed
+  ansible.builtin.command: "podman secret rm {{ wikijs_secret_name }}"
+  when: wikijs_secret_checksum_current != wikijs_db_password_checksum
+  failed_when: false
+  changed_when: wikijs_secret_checksum_current != wikijs_db_password_checksum
+  no_log: true
+  notify: restart wikijs container
+
+- name: Create Wiki.js Podman secret when password changed
+  ansible.builtin.shell: |
+    printf '%s' "$WIKIJS_DB_PASSWORD" | podman secret create {{ wikijs_secret_name }} -
+  args:
+    executable: /bin/bash
+  environment:
+    WIKIJS_DB_PASSWORD: "{{ wikijs_db_password }}"
+  when: wikijs_secret_checksum_current != wikijs_db_password_checksum
+  changed_when: wikijs_secret_checksum_current != wikijs_db_password_checksum
+  no_log: true
+  notify: restart wikijs container
+
+- name: Persist deployed Wiki.js Podman secret checksum
+  ansible.builtin.copy:
+    dest: "{{ wikijs_secret_checksum_file }}"
+    content: "{{ wikijs_db_password_checksum }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  when: wikijs_secret_checksum_current != wikijs_db_password_checksum
+  no_log: true
+
+- name: Render Wiki.js environment file
+  ansible.builtin.template:
+    src: wikijs.env.j2
+    dest: "{{ wikijs_env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart wikijs container
+
+- name: Render Wiki.js documentation bundle
+  ansible.builtin.template:
+    src: wiki-infra-report.md.j2
+    dest: "{{ wikijs_bootstrap_dir }}/00-infra-report.md"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render systemd service for Wiki.js container
+  ansible.builtin.template:
+    src: container-wikijs.service.j2
+    dest: "{{ wikijs_systemd_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart wikijs container
+
+- name: Ensure Wiki.js container service is enabled and started
+  ansible.builtin.systemd:
+    name: container-wikijs.service
+    enabled: true
+    state: started
+    daemon_reload: true

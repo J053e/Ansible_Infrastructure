@@ -1,21 +1,17 @@
+---
 - name: Install MaxScale
-  package:
+  ansible.builtin.dnf:
     name: maxscale
     state: present
 
-- name: Ensure log and data directories exist
-  file:
-    path: "{{ item }}"
-    state: directory
-    owner: maxscale
-    group: maxscale
-    mode: "0755"
-  loop:
-    - /var/log/maxscale
-    - /var/lib/maxscale
+- name: Ensure firewalld is enabled and running on maxscale
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
 
 - name: Deploy MaxScale config
-  template:
+  ansible.builtin.template:
     src: maxscale.cnf.j2
     dest: /etc/maxscale.cnf
     owner: root
@@ -23,25 +19,20 @@
     mode: "0644"
   notify: restart maxscale
 
-- name: Open MaxScale port
+- name: Allow MaxScale listener on DB zone
   ansible.posix.firewalld:
-    port: 4006/tcp
+    zone: "{{ db_zone }}"
+    port: "{{ maxscale_rw_port }}/tcp"
     permanent: true
-    state: enabled
     immediate: true
+    state: enabled
 
-- name: Enable MaxScale
-  service:
+- name: Ensure MaxScale is enabled and started
+  ansible.builtin.systemd:
     name: maxscale
-    state: started
     enabled: true
+    state: started
 
-- name: Restore SELinux context on MaxScale config file
-  command: restorecon /etc/maxscale.cnf
+- name: Reload MaxScale service
+  ansible.builtin.command: maxctrl reload service glpi-service
   changed_when: false
-  failed_when: false
-
-- name: Restore SELinux context on MaxScale log and data directories
-  command: restorecon -R /var/log/maxscale /var/lib/maxscale
-  changed_when: false
-  failed_when: false
