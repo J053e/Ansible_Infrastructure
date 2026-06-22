@@ -1,0 +1,83 @@
+---
+- name: Install FreeIPA server packages
+  ansible.builtin.dnf:
+    name:
+      - freeipa-server
+      - freeipa-server-dns
+      - firewalld
+      - chrony
+    state: present
+
+- name: Ensure ipa1 hostname is set as FQDN
+  ansible.builtin.hostname:
+    name: "{{ ipa_server_hostname }}"
+
+- name: Remove wrong ipa1 hosts entry if present
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ipa_server_ip }} ipa1 {{ ipa_server_hostname }}"
+    state: absent
+
+- name: Ensure /etc/hosts has ipa1 FQDN first
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ipa_server_ip }} {{ ipa_server_hostname }} ipa1"
+    create: true
+    state: present
+
+- name: Verify hostname -f before FreeIPA install
+  ansible.builtin.command: hostname -f
+  register: ipa_hostname_f
+  changed_when: false
+
+- name: Fail if hostname -f is not the IPA server FQDN
+  ansible.builtin.fail:
+    msg: "FreeIPA requires hostname -f to be {{ ipa_server_hostname }}, but current value is {{ ipa_hostname_f.stdout }}"
+  when: ipa_hostname_f.stdout != ipa_server_hostname
+
+- name: Open FreeIPA firewall service
+  ansible.posix.firewalld:
+    service: freeipa-4
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Open DNS service for FreeIPA
+  ansible.posix.firewalld:
+    service: dns
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Open NTP service for FreeIPA clients
+  ansible.posix.firewalld:
+    service: ntp
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Check if FreeIPA server is already installed
+  ansible.builtin.stat:
+    path: /etc/ipa/default.conf
+  register: ipa_default_conf
+
+- name: Install FreeIPA server with integrated DNS
+  ansible.builtin.command: >
+    ipa-server-install
+    --unattended
+    --realm={{ ipa_realm }}
+    --domain={{ ipa_domain }}
+    --hostname={{ ipa_server_hostname }}
+    --ds-password={{ ipa_dm_password }}
+    --admin-password={{ ipa_admin_password }}
+    --setup-dns
+    --forwarder=8.8.8.8
+    --forwarder=1.1.1.1
+    --no-ntp
+    --allow-zone-overlap
+  no_log: true
+  when: not ipa_default_conf.stat.exists
+
+- name: Ensure IPA services are enabled
+  ansible.builtin.command: ipactl status
+  changed_when: false

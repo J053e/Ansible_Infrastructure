@@ -1,0 +1,47 @@
+groups:
+  - name: infrastructure-alerts
+    rules:
+      - alert: HostDown
+        expr: up{job="node_exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host caído: {{ "{{ $labels.instance }}" }}"
+          description: "Prometheus no puede recolectar métricas desde {{ "{{ $labels.instance }}" }}."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU alta en {{ "{{ $labels.instance }}" }}"
+          description: "El uso de CPU se mantiene por encima del 85%."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memoria alta en {{ "{{ $labels.instance }}" }}"
+          description: "El uso de memoria se mantiene por encima del 85%."
+
+      - alert: DiskAlmostFull
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disco casi lleno en {{ "{{ $labels.instance }}" }}"
+          description: "Un filesystem superó el 85% de uso."
+
+      - alert: ServiceHTTPDown
+        expr: probe_success{job="blackbox_http"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Servicio HTTP caído: {{ "{{ $labels.service }}" }}"
+          description: "Blackbox Exporter no pudo validar el servicio {{ "{{ $labels.service }}" }}."

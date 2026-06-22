@@ -1,0 +1,26 @@
+[Unit]
+Description=Grafana container
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/podman rm -f grafana
+ExecStart=/usr/bin/podman run --name grafana --replace \
+  --memory 512m \
+  --memory-swap 512m \
+  --cpus 1 \
+  --pids-limit 256 \
+  -p {{ grafana_port }}:3000 \
+  -v {{ grafana_config_dir }}/grafana.ini:/etc/grafana/grafana.ini:Z \
+  -v {{ grafana_config_dir }}/ldap.toml:/etc/grafana/ldap.toml:Z \
+  -v {{ grafana_config_dir }}/provisioning:/etc/grafana/provisioning:Z \
+  -v {{ grafana_config_dir }}/dashboards:/var/lib/grafana/dashboards:Z \
+  -v {{ grafana_data_dir }}:/var/lib/grafana:Z,U \
+  {{ grafana_image }}
+ExecStop=/usr/bin/podman stop -t 10 grafana
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

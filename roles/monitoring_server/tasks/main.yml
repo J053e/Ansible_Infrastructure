@@ -1,0 +1,228 @@
+---
+- name: Install monitoring server packages
+  ansible.builtin.dnf:
+    name:
+      - podman
+      - firewalld
+      - policycoreutils-python-utils
+      - curl
+    state: present
+
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Create monitoring directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ monitoring_base_dir }}"
+    - "{{ prometheus_config_dir }}"
+    - "{{ prometheus_data_dir }}"
+    - "{{ grafana_config_dir }}"
+    - "{{ grafana_config_dir }}/provisioning"
+    - "{{ grafana_config_dir }}/provisioning/datasources"
+    - "{{ grafana_config_dir }}/provisioning/dashboards"
+    - "{{ grafana_config_dir }}/dashboards"
+    - "{{ grafana_data_dir }}"
+    - "{{ loki_config_dir }}"
+    - "{{ loki_data_dir }}"
+    - "{{ alertmanager_config_dir }}"
+    - "{{ alertmanager_data_dir }}"
+    - "{{ blackbox_config_dir }}"
+
+- name: Render Prometheus config
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart prometheus
+
+- name: Render Prometheus alert rules
+  ansible.builtin.template:
+    src: alerts.yml.j2
+    dest: "{{ prometheus_config_dir }}/alerts.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart prometheus
+
+- name: Render Alertmanager config
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ alertmanager_config_dir }}/alertmanager.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  no_log: true
+  notify: restart alertmanager
+
+- name: Render Loki config
+  ansible.builtin.template:
+    src: loki-config.yml.j2
+    dest: "{{ loki_config_dir }}/loki-config.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart loki
+
+- name: Render Blackbox Exporter config
+  ansible.builtin.template:
+    src: blackbox.yml.j2
+    dest: "{{ blackbox_config_dir }}/blackbox.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart blackbox-exporter
+
+- name: Render Grafana config
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: "{{ grafana_config_dir }}/grafana.ini"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart grafana
+
+- name: Render Grafana LDAP config
+  ansible.builtin.template:
+    src: ldap.toml.j2
+    dest: "{{ grafana_config_dir }}/ldap.toml"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: restart grafana
+
+- name: Render Grafana datasource provisioning
+  ansible.builtin.template:
+    src: datasources.yml.j2
+    dest: "{{ grafana_config_dir }}/provisioning/datasources/datasources.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart grafana
+
+- name: Render Grafana dashboard provider
+  ansible.builtin.template:
+    src: dashboards.yml.j2
+    dest: "{{ grafana_config_dir }}/provisioning/dashboards/dashboards.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart grafana
+
+- name: Render infrastructure dashboard
+  ansible.builtin.template:
+    src: infra-dashboard.json.j2
+    dest: "{{ grafana_config_dir }}/dashboards/infra-dashboard.json"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart grafana
+
+- name: Render Prometheus systemd unit
+  ansible.builtin.template:
+    src: container-prometheus.service.j2
+    dest: /etc/systemd/system/container-prometheus.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart prometheus
+
+- name: Render Grafana systemd unit
+  ansible.builtin.template:
+    src: container-grafana.service.j2
+    dest: /etc/systemd/system/container-grafana.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart grafana
+
+- name: Render Loki systemd unit
+  ansible.builtin.template:
+    src: container-loki.service.j2
+    dest: /etc/systemd/system/container-loki.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart loki
+
+- name: Render Alertmanager systemd unit
+  ansible.builtin.template:
+    src: container-alertmanager.service.j2
+    dest: /etc/systemd/system/container-alertmanager.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart alertmanager
+
+- name: Render Blackbox Exporter systemd unit
+  ansible.builtin.template:
+    src: container-blackbox-exporter.service.j2
+    dest: /etc/systemd/system/container-blackbox-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart blackbox-exporter
+
+- name: Open Grafana from management network
+  ansible.posix.firewalld:
+    zone: "{{ mgmt_zone }}"
+    port: "{{ grafana_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Open Prometheus from management network
+  ansible.posix.firewalld:
+    zone: "{{ mgmt_zone }}"
+    port: "{{ prometheus_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Open Alertmanager from management network
+  ansible.posix.firewalld:
+    zone: "{{ mgmt_zone }}"
+    port: "{{ alertmanager_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Open Loki ingest from active infrastructure
+  ansible.posix.firewalld:
+    zone: "{{ mgmt_zone }}"
+    port: "{{ loki_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Ensure monitoring services are enabled and started
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - container-prometheus.service
+    - container-grafana.service
+    - container-loki.service
+    - container-alertmanager.service
+    - container-blackbox-exporter.service

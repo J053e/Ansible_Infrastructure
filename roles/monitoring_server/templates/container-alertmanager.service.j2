@@ -1,0 +1,25 @@
+[Unit]
+Description=Alertmanager container
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/podman rm -f alertmanager
+ExecStart=/usr/bin/podman run --name alertmanager --replace \
+  --memory 256m \
+  --memory-swap 256m \
+  --cpus 0.5 \
+  --pids-limit 128 \
+  -p {{ alertmanager_port }}:9093 \
+  -v {{ alertmanager_config_dir }}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:Z,ro \
+  -v {{ alertmanager_data_dir }}:/alertmanager:Z,U \
+  {{ alertmanager_image }} \
+  --config.file=/etc/alertmanager/alertmanager.yml \
+  --storage.path=/alertmanager
+ExecStop=/usr/bin/podman stop -t 10 alertmanager
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

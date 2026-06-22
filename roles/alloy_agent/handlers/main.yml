@@ -1,6 +1,6 @@
 ---
-- name: restart chronyd
+- name: restart alloy
   ansible.builtin.systemd:
-    name: chronyd
+    name: alloy
     state: restarted
     enabled: true

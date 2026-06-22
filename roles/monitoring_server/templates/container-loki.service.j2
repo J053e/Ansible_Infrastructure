@@ -1,0 +1,24 @@
+[Unit]
+Description=Loki container
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/podman rm -f loki
+ExecStart=/usr/bin/podman run --name loki --replace \
+  --memory 512m \
+  --memory-swap 512m \
+  --cpus 1 \
+  --pids-limit 256 \
+  -p {{ loki_port }}:3100 \
+  -v {{ loki_config_dir }}/loki-config.yml:/etc/loki/local-config.yaml:Z \
+  -v {{ loki_data_dir }}:/loki:Z,U \
+  {{ loki_image }} \
+  -config.file=/etc/loki/local-config.yaml
+ExecStop=/usr/bin/podman stop -t 10 loki
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

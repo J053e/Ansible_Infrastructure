@@ -1,0 +1,11 @@
+---
+node_exporter_version: "1.9.1"
+node_exporter_arch: "linux-amd64"
+node_exporter_user: node_exporter
+node_exporter_group: node_exporter
+node_exporter_port: 9100
+node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}.tar.gz"
+node_exporter_archive_path: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+node_exporter_extract_dir: "/tmp/node_exporter-{{ node_exporter_version }}"
+node_exporter_binary_src: "/tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}/node_exporter"
+node_exporter_binary_dest: "/usr/local/bin/node_exporter"

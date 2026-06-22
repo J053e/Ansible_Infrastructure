@@ -1,0 +1,11 @@
+pool 0.rocky.pool.ntp.org iburst
+pool 1.rocky.pool.ntp.org iburst
+pool 2.rocky.pool.ntp.org iburst
+pool 3.rocky.pool.ntp.org iburst
+
+allow {{ chrony_allowed_network }}
+
+driftfile /var/lib/chrony/drift
+makestep 1.0 3
+rtcsync
+logdir /var/log/chrony

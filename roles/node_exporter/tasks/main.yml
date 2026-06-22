@@ -1,0 +1,129 @@
+---
+- name: Create node_exporter group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: true
+    state: present
+
+- name: Create node_exporter user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    system: true
+    shell: /sbin/nologin
+    create_home: false
+    state: present
+
+- name: Install packages required for node_exporter
+  ansible.builtin.dnf:
+    name:
+      - tar
+      - gzip
+      - curl
+    state: present
+
+- name: Check if node_exporter binary already exists
+  ansible.builtin.stat:
+    path: "{{ node_exporter_binary_dest }}"
+  register: node_exporter_binary_current
+
+- name: Check current node_exporter version
+  ansible.builtin.command: "{{ node_exporter_binary_dest }} --version"
+  register: node_exporter_current_version
+  changed_when: false
+  failed_when: false
+  when: node_exporter_binary_current.stat.exists
+
+- name: Set node_exporter install required fact
+  ansible.builtin.set_fact:
+    node_exporter_install_required: >-
+      {{
+        (not node_exporter_binary_current.stat.exists) or
+        (node_exporter_version not in (node_exporter_current_version.stdout | default('')))
+      }}
+
+- name: Download node_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ node_exporter_download_url }}"
+    dest: "{{ node_exporter_archive_path }}"
+    mode: "0644"
+    timeout: 60
+  when: node_exporter_install_required
+
+- name: Verify node_exporter archive exists after download
+  ansible.builtin.stat:
+    path: "{{ node_exporter_archive_path }}"
+  register: node_exporter_archive_stat
+  when: node_exporter_install_required
+
+- name: Fail if node_exporter archive was not downloaded
+  ansible.builtin.fail:
+    msg: "node_exporter archive was not downloaded. Check DNS, internet access or the URL: {{ node_exporter_download_url }}"
+  when:
+    - node_exporter_install_required
+    - not node_exporter_archive_stat.stat.exists
+
+- name: Extract node_exporter archive
+  ansible.builtin.unarchive:
+    src: "{{ node_exporter_archive_path }}"
+    dest: /tmp
+    remote_src: true
+  when: node_exporter_install_required
+
+- name: Install node_exporter binary
+  ansible.builtin.copy:
+    src: "{{ node_exporter_binary_src }}"
+    dest: "{{ node_exporter_binary_dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+  when: node_exporter_install_required
+  notify: restart node_exporter
+
+- name: Render node_exporter systemd unit
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - systemd daemon-reload
+    - restart node_exporter
+
+- name: Detect MGMT interface for node_exporter firewall rule
+  ansible.builtin.shell: |
+    ip -o -4 addr show | awk '$4 ~ /^192\.168\.164\./ {print $2; exit}'
+  args:
+    executable: /bin/bash
+  register: node_exporter_mgmt_interface
+  changed_when: false
+
+- name: Fail if MGMT interface was not detected
+  ansible.builtin.fail:
+    msg: "Could not detect MGMT interface with IP 192.168.164.x on {{ inventory_hostname }}"
+  when: node_exporter_mgmt_interface.stdout | length == 0
+
+- name: Detect firewalld zone for MGMT interface
+  ansible.builtin.shell: |
+    firewall-cmd --get-zone-of-interface="{{ node_exporter_mgmt_interface.stdout }}" 2>/dev/null || firewall-cmd --get-default-zone
+  args:
+    executable: /bin/bash
+  register: node_exporter_mgmt_zone
+  changed_when: false
+
+- name: Allow node_exporter from monitoring server on MGMT zone
+  ansible.posix.firewalld:
+    zone: "{{ node_exporter_mgmt_zone.stdout }}"
+    rich_rule: 'rule family="ipv4" source address="{{ hostvars["mon1"].mgmt_ip }}/32" port port="{{ node_exporter_port }}" protocol="tcp" accept'
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Ensure node_exporter is enabled and running
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: true
+    state: started
+    daemon_reload: true

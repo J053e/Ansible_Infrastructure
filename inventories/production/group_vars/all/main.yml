@@ -3,6 +3,96 @@ timezone: America/Costa_Rica
 ansible_ssh_private_key_file: /root/.ssh/ansible_lab
 ansible_ssh_common_args: "-o IdentitiesOnly=yes"
 
+infra_domain: infra.lab
+infra_realm: INFRA.LAB
+
+infra_dns_servers:
+  - 192.168.164.70
+  - 8.8.8.8
+
+chrony_server_ip: 192.168.164.1
+chrony_allowed_network: 192.168.164.0/24
+chrony_client_servers:
+  - 192.168.164.1
+
+ipa_server_hostname: ipa1.infra.lab
+ipa_server_ip: 192.168.164.70
+ipa_domain: infra.lab
+ipa_realm: INFRA.LAB
+ipa_admin_user: admin
+ipa_admin_password: "{{ vault_ipa_admin_password }}"
+ipa_dm_password: "{{ vault_ipa_dm_password }}"
+
+idm_users:
+  - username: opsadmin
+    first: Ops
+    last: Admin
+    password: "{{ vault_ipa_user_default_password }}"
+    groups:
+      - grp-platform-admins
+      - grp-grafana-admins
+  - username: dbops
+    first: DB
+    last: Operator
+    password: "{{ vault_ipa_user_default_password }}"
+    groups:
+      - grp-db-ops
+  - username: appops
+    first: App
+    last: Operator
+    password: "{{ vault_ipa_user_default_password }}"
+    groups:
+      - grp-app-ops
+  - username: monops
+    first: Monitoring
+    last: Operator
+    password: "{{ vault_ipa_user_default_password }}"
+    groups:
+      - grp-monitoring-ops
+      - grp-grafana-admins
+  - username: auditor
+    first: Read
+    last: Only
+    password: "{{ vault_ipa_user_default_password }}"
+    groups:
+      - grp-auditors
+      - grp-grafana-viewers
+
+idm_user_groups:
+  - grp-platform-admins
+  - grp-db-ops
+  - grp-app-ops
+  - grp-monitoring-ops
+  - grp-auditors
+  - grp-grafana-admins
+  - grp-grafana-viewers
+
+idm_host_groups:
+  - name: hg-admin
+    hosts:
+      - admin-nat.infra.lab
+      - ipa1.infra.lab
+      - mon1.infra.lab
+  - name: hg-app
+    hosts:
+      - haproxy.infra.lab
+      - ctr-host1.infra.lab
+  - name: hg-db
+    hosts:
+      - db1.infra.lab
+      - db2.infra.lab
+      - maxscale.infra.lab
+  - name: hg-all-active
+    hosts:
+      - admin-nat.infra.lab
+      - ipa1.infra.lab
+      - haproxy.infra.lab
+      - db1.infra.lab
+      - db2.infra.lab
+      - maxscale.infra.lab
+      - ctr-host1.infra.lab
+      - mon1.infra.lab
+
 mariadb_root_user: "{{ vault_mariadb_root_user }}"
 mariadb_root_password: "{{ vault_mariadb_root_password }}"
 
@@ -49,3 +139,67 @@ wikijs_db_password: "{{ vault_wikijs_db_password }}"
 wikijs_memory: 512m
 wikijs_cpus: "1.0"
 wikijs_pids_limit: 256
+
+monitoring_domain: infra.lab
+
+prometheus_image: docker.io/prom/prometheus:latest
+grafana_image: docker.io/grafana/grafana:latest
+loki_image: docker.io/grafana/loki:latest
+alertmanager_image: docker.io/prom/alertmanager:latest
+blackbox_exporter_image: docker.io/prom/blackbox-exporter:latest
+
+prometheus_port: 9090
+grafana_port: 3000
+loki_port: 3100
+alertmanager_port: 9093
+blackbox_exporter_port: 9115
+node_exporter_port: 9100
+alloy_port: 12345
+
+monitoring_base_dir: /srv/monitoring
+prometheus_config_dir: /srv/monitoring/prometheus
+prometheus_data_dir: /srv/monitoring/prometheus-data
+grafana_config_dir: /srv/monitoring/grafana
+grafana_data_dir: /srv/monitoring/grafana-data
+loki_config_dir: /srv/monitoring/loki
+loki_data_dir: /srv/monitoring/loki-data
+alertmanager_config_dir: /srv/monitoring/alertmanager
+alertmanager_data_dir: /srv/monitoring/alertmanager-data
+blackbox_config_dir: /srv/monitoring/blackbox
+
+grafana_admin_user: admin
+grafana_admin_password: "{{ vault_grafana_admin_password }}"
+
+alert_email_to: "{{ vault_alert_email_to }}"
+alert_email_from: "{{ vault_alert_email_from }}"
+alert_smtp_smarthost: "{{ vault_alert_smtp_smarthost }}"
+alert_smtp_auth_username: "{{ vault_alert_smtp_auth_username }}"
+alert_smtp_auth_password: "{{ vault_alert_smtp_auth_password }}"
+alert_webhook_url: "{{ vault_alert_webhook_url }}"
+
+grafana_ldap_bind_dn: "uid=grafana-bind,cn=users,cn=accounts,dc=infra,dc=lab"
+grafana_ldap_bind_password: "{{ vault_grafana_ldap_bind_password }}"
+
+monitoring_targets:
+  - name: admin-nat
+    ip: 192.168.164.1
+  - name: ipa1
+    ip: 192.168.164.70
+  - name: haproxy
+    ip: 192.168.164.10
+  - name: db1
+    ip: 192.168.164.30
+  - name: db2
+    ip: 192.168.164.31
+  - name: maxscale
+    ip: 192.168.164.40
+  - name: ctr-host1
+    ip: 192.168.164.60
+  - name: mon1
+    ip: 192.168.164.80
+
+blackbox_http_targets:
+  - name: glpi
+    url: http://172.24.133.164
+  - name: wikijs
+    url: http://wiki.lab

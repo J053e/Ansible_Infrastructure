@@ -1,0 +1,181 @@
+---
+- name: Obtain Kerberos ticket for IPA admin
+  ansible.builtin.shell: |
+    printf '%s\n' "{{ ipa_admin_password }}" | kinit {{ ipa_admin_user }}
+  args:
+    executable: /bin/bash
+  no_log: true
+  changed_when: false
+
+- name: Ensure IPA user groups exist
+  ansible.builtin.shell: |
+    ipa group-show "{{ item }}" >/dev/null 2>&1 || \
+    ipa group-add "{{ item }}" --desc="{{ item }}"
+  args:
+    executable: /bin/bash
+  loop: "{{ idm_user_groups }}"
+  changed_when: false
+
+- name: Ensure IPA host groups exist
+  ansible.builtin.shell: |
+    ipa hostgroup-show "{{ item.name }}" >/dev/null 2>&1 || \
+    ipa hostgroup-add "{{ item.name }}" --desc="{{ item.name }}"
+  args:
+    executable: /bin/bash
+  loop: "{{ idm_host_groups }}"
+  changed_when: false
+
+- name: Ensure DNS A records exist
+  ansible.builtin.shell: |
+    if ipa dnsrecord-show {{ ipa_domain }} "{{ item.key }}" >/dev/null 2>&1; then
+      ipa dnsrecord-mod {{ ipa_domain }} "{{ item.key }}" --a-rec="{{ item.value }}" >/dev/null 2>&1 || true
+    else
+      ipa dnsrecord-add {{ ipa_domain }} "{{ item.key }}" --a-rec="{{ item.value }}"
+    fi
+  args:
+    executable: /bin/bash
+  loop:
+    - { key: "ipa1", value: "192.168.164.70" }
+    - { key: "admin-nat", value: "192.168.164.1" }
+    - { key: "haproxy", value: "192.168.164.10" }
+    - { key: "db1", value: "192.168.164.30" }
+    - { key: "db2", value: "192.168.164.31" }
+    - { key: "maxscale", value: "192.168.164.40" }
+    - { key: "ctr-host1", value: "192.168.164.60" }
+    - { key: "mon1", value: "192.168.164.80" }
+    - { key: "wiki", value: "172.24.133.164" }
+    - { key: "glpi", value: "172.24.133.164" }
+  changed_when: false
+
+- name: Ensure IPA users exist
+  ansible.builtin.shell: |
+    if ipa user-show "{{ item.username }}" >/dev/null 2>&1; then
+      exit 0
+    fi
+
+    printf '%s\n%s\n' "{{ item.password }}" "{{ item.password }}" | \
+    ipa user-add "{{ item.username }}" \
+      --first="{{ item.first }}" \
+      --last="{{ item.last }}" \
+      --password
+  args:
+    executable: /bin/bash
+  loop: "{{ idm_users }}"
+  no_log: true
+  changed_when: false
+
+- name: Ensure users are members of groups
+  ansible.builtin.shell: |
+    {% for group in item.groups %}
+    ipa group-add-member "{{ group }}" --users="{{ item.username }}" >/dev/null 2>&1 || true
+    {% endfor %}
+  args:
+    executable: /bin/bash
+  loop: "{{ idm_users }}"
+  changed_when: false
+
+- name: Add hosts to IPA hostgroups
+  ansible.builtin.shell: |
+    missing=0
+
+    {% for host in item.hosts %}
+    if ipa host-show "{{ host }}" >/dev/null 2>&1; then
+      ipa hostgroup-add-member "{{ item.name }}" --hosts="{{ host }}" >/dev/null 2>&1 || true
+    else
+      echo "Host not found in FreeIPA: {{ host }}"
+      missing=1
+    fi
+    {% endfor %}
+
+    exit $missing
+  args:
+    executable: /bin/bash
+  loop: "{{ idm_host_groups }}"
+  changed_when: false
+
+- name: Disable default allow_all HBAC rule
+  ansible.builtin.shell: |
+    ipa hbacrule-show allow_all >/dev/null 2>&1 && ipa hbacrule-disable allow_all || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create HBAC rule for platform admins
+  ansible.builtin.shell: |
+    ipa hbacrule-show allow_platform_admins_all >/dev/null 2>&1 || \
+    ipa hbacrule-add allow_platform_admins_all --desc="Platform admins can SSH to all active hosts"
+
+    ipa hbacrule-add-user allow_platform_admins_all --groups=grp-platform-admins >/dev/null 2>&1 || true
+    ipa hbacrule-add-host allow_platform_admins_all --hostgroups=hg-all-active >/dev/null 2>&1 || true
+    ipa hbacrule-add-service allow_platform_admins_all --hbacsvcs=sshd >/dev/null 2>&1 || true
+    ipa hbacrule-enable allow_platform_admins_all >/dev/null 2>&1 || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create HBAC rule for DB operators
+  ansible.builtin.shell: |
+    ipa hbacrule-show allow_db_ops_db >/dev/null 2>&1 || \
+    ipa hbacrule-add allow_db_ops_db --desc="DB operators can SSH to database servers"
+
+    ipa hbacrule-add-user allow_db_ops_db --groups=grp-db-ops >/dev/null 2>&1 || true
+    ipa hbacrule-add-host allow_db_ops_db --hostgroups=hg-db >/dev/null 2>&1 || true
+    ipa hbacrule-add-service allow_db_ops_db --hbacsvcs=sshd >/dev/null 2>&1 || true
+    ipa hbacrule-enable allow_db_ops_db >/dev/null 2>&1 || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create HBAC rule for APP operators
+  ansible.builtin.shell: |
+    ipa hbacrule-show allow_app_ops_app >/dev/null 2>&1 || \
+    ipa hbacrule-add allow_app_ops_app --desc="APP operators can SSH to app-facing servers"
+
+    ipa hbacrule-add-user allow_app_ops_app --groups=grp-app-ops >/dev/null 2>&1 || true
+    ipa hbacrule-add-host allow_app_ops_app --hostgroups=hg-app >/dev/null 2>&1 || true
+    ipa hbacrule-add-service allow_app_ops_app --hbacsvcs=sshd >/dev/null 2>&1 || true
+    ipa hbacrule-enable allow_app_ops_app >/dev/null 2>&1 || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create HBAC rule for monitoring operators
+  ansible.builtin.shell: |
+    ipa hbacrule-show allow_monitoring_ops_mon >/dev/null 2>&1 || \
+    ipa hbacrule-add allow_monitoring_ops_mon --desc="Monitoring operators can SSH to monitoring and admin servers"
+
+    ipa hbacrule-add-user allow_monitoring_ops_mon --groups=grp-monitoring-ops >/dev/null 2>&1 || true
+    ipa hbacrule-add-host allow_monitoring_ops_mon --hostgroups=hg-admin >/dev/null 2>&1 || true
+    ipa hbacrule-add-service allow_monitoring_ops_mon --hbacsvcs=sshd >/dev/null 2>&1 || true
+    ipa hbacrule-enable allow_monitoring_ops_mon >/dev/null 2>&1 || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create sudo rule for platform admins
+  ansible.builtin.shell: |
+    ipa sudorule-show allow_platform_admins_sudo >/dev/null 2>&1 || \
+    ipa sudorule-add allow_platform_admins_sudo
+
+    ipa sudorule-add-user allow_platform_admins_sudo --groups=grp-platform-admins >/dev/null 2>&1 || true
+    ipa sudorule-add-host allow_platform_admins_sudo --hostgroups=hg-all-active >/dev/null 2>&1 || true
+    ipa sudorule-mod allow_platform_admins_sudo --cmdcat=all --runasusercat=all --runasgroupcat=all >/dev/null 2>&1 || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create Grafana LDAP bind user
+  ansible.builtin.shell: |
+    if ipa user-show grafana-bind >/dev/null 2>&1; then
+      exit 0
+    fi
+
+    printf '%s\n%s\n' "{{ grafana_ldap_bind_password }}" "{{ grafana_ldap_bind_password }}" | \
+    ipa user-add grafana-bind \
+      --first=Grafana \
+      --last=Bind \
+      --password
+  args:
+    executable: /bin/bash
+  no_log: true
+  changed_when: false

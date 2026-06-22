@@ -1,54 +1,85 @@
+---
 - name: Set hostname
-  hostname:
-    name: "{{ hostname_short | default(inventory_hostname) }}"
+  ansible.builtin.hostname:
+    name: "{{ fqdn | default(inventory_hostname + '.' + infra_domain) }}"
 
 - name: Set timezone
-  community.general.timezone:
+  ansible.builtin.timezone:
     name: "{{ timezone }}"
 
 - name: Ensure baseline packages are installed
-  package:
+  ansible.builtin.dnf:
     name:
-      - nano
       - vim
+      - nano
       - curl
       - wget
       - bash-completion
-      - firewalld
-      - policycoreutils
-      - policycoreutils-python-utils
-      - setools-console
-      - python3-libselinux
-      - python3-libsemanage
       - rsync
-      - tar
-      - unzip
-      - git
-      - nmap
+      - firewalld
+      - chrony
+      - python3-libselinux
+      - policycoreutils-python-utils
     state: present
 
-- name: Ensure firewalld is enabled and running
-  service:
-    name: firewalld
-    state: started
-    enabled: true
+- name: Configure chrony client
+  ansible.builtin.template:
+    src: chrony-client.conf.j2
+    dest: /etc/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart chronyd
 
-- name: Ensure /etc/hosts contains infrastructure names
-  blockinfile:
+- name: Ensure chronyd is enabled and running
+  ansible.builtin.systemd:
+    name: chronyd
+    enabled: true
+    state: started
+
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Ensure /etc/hosts contains infrastructure names with FQDN first
+  ansible.builtin.blockinfile:
     path: /etc/hosts
     marker: "# {mark} ANSIBLE INFRA HOSTS"
     block: |
-      192.168.164.1 admin-nat
-      192.168.164.10 haproxy
-      192.168.164.20 web1
-      192.168.164.21 web2
-      192.168.164.30 db1
-      192.168.164.31 db2
-      192.168.164.40 maxscale
-      192.168.164.50 ansible-control
+      192.168.164.1 admin-nat.infra.lab admin-nat
+      192.168.164.70 ipa1.infra.lab ipa1
+      192.168.164.10 haproxy.infra.lab haproxy
+      192.168.164.30 db1.infra.lab db1
+      192.168.164.31 db2.infra.lab db2
+      192.168.164.40 maxscale.infra.lab maxscale
+      192.168.164.60 ctr-host1.infra.lab ctr-host1
+      192.168.164.80 mon1.infra.lab mon1
+      192.168.165.10 haproxy-app
+      192.168.165.60 ctr-host1-app
+      192.168.165.80 mon1-app
+      192.168.166.30 db1-db
+      192.168.166.31 db2-db
+      192.168.166.40 maxscale-db
+      192.168.166.60 ctr-host1-db
+      192.168.166.80 mon1-db
+      172.24.133.164 wiki.lab
+
+- name: Remove duplicate ipa1 hosts entry if present
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "192.168.164.70 ipa1.infra.lab ipa1"
+    state: absent
+
+- name: Remove wrong ipa1 hosts entry if present
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "192.168.164.70 ipa1 ipa1.infra.lab"
+    state: absent
 
 - name: Ensure root SSH directory exists
-  file:
+  ansible.builtin.file:
     path: /root/.ssh
     state: directory
     owner: root
@@ -56,21 +87,20 @@
     mode: "0700"
 
 - name: Ensure root authorized_keys exists
-  copy:
-    dest: /root/.ssh/authorized_keys
-    content: ""
-    force: false
+  ansible.builtin.lineinfile:
+    path: /root/.ssh/authorized_keys
+    create: true
+    mode: "0600"
     owner: root
     group: root
-    mode: "0600"
+    line: "{{ lookup('file', '/root/.ssh/ansible_lab.pub') }}"
 
 - name: Restore SELinux context on root SSH files
-  command: restorecon -R /root/.ssh
+  ansible.builtin.command: restorecon -Rv /root/.ssh
   changed_when: false
-  failed_when: false
 
 - name: Ensure sshd is enabled and running
-  service:
+  ansible.builtin.systemd:
     name: sshd
-    state: started
     enabled: true
+    state: started

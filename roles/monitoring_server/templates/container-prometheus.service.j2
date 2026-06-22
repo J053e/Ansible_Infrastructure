@@ -1,0 +1,28 @@
+[Unit]
+Description=Prometheus container
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/podman rm -f prometheus
+ExecStart=/usr/bin/podman run --name prometheus --replace \
+  --memory 768m \
+  --memory-swap 768m \
+  --cpus 1 \
+  --pids-limit 256 \
+  -p {{ prometheus_port }}:9090 \
+  -v {{ prometheus_config_dir }}:/etc/prometheus:Z \
+  -v {{ prometheus_data_dir }}:/prometheus:Z,U \
+  {{ prometheus_image }} \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/prometheus \
+  --storage.tsdb.retention.time=7d \
+  --storage.tsdb.retention.size=2GB \
+  --web.enable-lifecycle
+ExecStop=/usr/bin/podman stop -t 10 prometheus
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

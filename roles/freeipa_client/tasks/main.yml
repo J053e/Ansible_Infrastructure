@@ -1,0 +1,147 @@
+---
+- name: Set expected client FQDN fact
+  ansible.builtin.set_fact:
+    ipa_client_fqdn: "{{ fqdn | default(inventory_hostname + '.' + ipa_domain) }}"
+
+- name: Ensure hostname is configured as FQDN before enrollment
+  ansible.builtin.hostname:
+    name: "{{ ipa_client_fqdn }}"
+
+- name: Remove wrong short-name-first hosts entries
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+    state: absent
+  loop:
+    - "192.168.164.1 admin-nat admin-nat.infra.lab"
+    - "192.168.164.70 ipa1 ipa1.infra.lab"
+    - "192.168.164.10 haproxy haproxy.infra.lab"
+    - "192.168.164.30 db1 db1.infra.lab"
+    - "192.168.164.31 db2 db2.infra.lab"
+    - "192.168.164.40 maxscale maxscale.infra.lab"
+    - "192.168.164.60 ctr-host1 ctr-host1.infra.lab"
+    - "192.168.164.80 mon1 mon1.infra.lab"
+
+- name: Ensure infrastructure hosts file has FQDN first
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE INFRA HOSTS"
+    block: |
+      192.168.164.1 admin-nat.infra.lab admin-nat
+      192.168.164.70 ipa1.infra.lab ipa1
+      192.168.164.10 haproxy.infra.lab haproxy
+      192.168.164.30 db1.infra.lab db1
+      192.168.164.31 db2.infra.lab db2
+      192.168.164.40 maxscale.infra.lab maxscale
+      192.168.164.60 ctr-host1.infra.lab ctr-host1
+      192.168.164.80 mon1.infra.lab mon1
+      192.168.165.10 haproxy-app
+      192.168.165.60 ctr-host1-app
+      192.168.165.80 mon1-app
+      192.168.166.30 db1-db
+      192.168.166.31 db2-db
+      192.168.166.40 maxscale-db
+      192.168.166.60 ctr-host1-db
+      192.168.166.80 mon1-db
+      172.24.133.164 wiki.lab
+
+- name: Find active NetworkManager connection for default interface
+  ansible.builtin.shell: |
+    nmcli -t -f NAME,DEVICE connection show --active | awk -F: -v dev="{{ ansible_default_ipv4.interface }}" '$2 == dev {print $1; exit}'
+  args:
+    executable: /bin/bash
+  register: ipa_nm_connection
+  changed_when: false
+
+- name: Configure DNS on active NetworkManager connection
+  ansible.builtin.command: >
+    nmcli connection modify "{{ ipa_nm_connection.stdout }}"
+    ipv4.dns "{{ ipa_server_ip }} 8.8.8.8"
+    ipv4.dns-search "{{ ipa_domain }}"
+    ipv4.ignore-auto-dns yes
+  when: ipa_nm_connection.stdout | length > 0
+  changed_when: true
+
+- name: Bring NetworkManager connection up after DNS change
+  ansible.builtin.command: nmcli connection up "{{ ipa_nm_connection.stdout }}"
+  when: ipa_nm_connection.stdout | length > 0
+  changed_when: true
+
+- name: Force resolv.conf to use FreeIPA DNS
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      search {{ ipa_domain }}
+      nameserver {{ ipa_server_ip }}
+      nameserver 8.8.8.8
+      options timeout:2 attempts:2
+
+- name: Verify FreeIPA DNS server is reachable on TCP 53
+  ansible.builtin.wait_for:
+    host: "{{ ipa_server_ip }}"
+    port: 53
+    timeout: 10
+
+- name: Verify internal DNS resolution through FreeIPA
+  ansible.builtin.command: getent hosts {{ ipa_server_hostname }}
+  changed_when: false
+
+- name: Verify external DNS resolution through FreeIPA forwarders
+  ansible.builtin.command: getent hosts mirrors.rockylinux.org
+  changed_when: false
+
+- name: Install FreeIPA client packages
+  ansible.builtin.dnf:
+    name:
+      - freeipa-client
+      - sssd
+      - oddjob
+      - oddjob-mkhomedir
+      - authselect
+    state: present
+
+- name: Verify hostname -f before FreeIPA client enrollment
+  ansible.builtin.command: hostname -f
+  register: client_hostname_f
+  changed_when: false
+
+- name: Fail if hostname -f is not the expected FQDN
+  ansible.builtin.fail:
+    msg: "FreeIPA client requires hostname -f to be {{ ipa_client_fqdn }}, but current value is {{ client_hostname_f.stdout }}"
+  when: client_hostname_f.stdout != ipa_client_fqdn
+
+- name: Check if host is already enrolled
+  ansible.builtin.stat:
+    path: /etc/ipa/default.conf
+  register: ipa_client_default_conf
+
+- name: Enroll host into FreeIPA
+  ansible.builtin.command: >
+    ipa-client-install
+    --unattended
+    --mkhomedir
+    --domain={{ ipa_domain }}
+    --realm={{ ipa_realm }}
+    --server={{ ipa_server_hostname }}
+    --hostname={{ ipa_client_fqdn }}
+    --principal={{ ipa_admin_user }}
+    --password={{ ipa_admin_password }}
+    --enable-dns-updates
+    --force-join
+  no_log: true
+  when: not ipa_client_default_conf.stat.exists
+
+- name: Ensure oddjobd is enabled and running
+  ansible.builtin.systemd:
+    name: oddjobd
+    enabled: true
+    state: started
+
+- name: Ensure sssd is enabled and running
+  ansible.builtin.systemd:
+    name: sssd
+    enabled: true
+    state: started

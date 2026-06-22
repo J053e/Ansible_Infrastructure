@@ -12,6 +12,41 @@
     ALTER USER '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ wikijs_db_password }}';
     GRANT ALL PRIVILEGES ON `{{ wikijs_db_name }}`.* TO '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}';
 
+    CREATE USER IF NOT EXISTS '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+    ALTER USER '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+
+    CREATE USER IF NOT EXISTS '{{ maxscale_monitor_user }}'@'%' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+    ALTER USER '{{ maxscale_monitor_user }}'@'%' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+
+    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICATION CLIENT ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT PROCESS ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT RELOAD ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SUPER ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT BINLOG MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICA MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICATION SLAVE ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICATION MASTER ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+
+    GRANT SELECT ON mysql.user TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.db TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.tables_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.columns_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.procs_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.proxies_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.global_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+
+    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICATION CLIENT ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT PROCESS ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT RELOAD ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SUPER ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT BINLOG MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICA MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICATION SLAVE ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICATION MASTER ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+
     GRANT SELECT ON mysql.user TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.db TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.tables_priv TO '{{ maxscale_monitor_user }}'@'%';
@@ -19,9 +54,8 @@
     GRANT SELECT ON mysql.procs_priv TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.proxies_priv TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.global_priv TO '{{ maxscale_monitor_user }}'@'%';
-    GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'%';
-    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'%';
-
+    GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'%'; 
+    
     FLUSH PRIVILEGES;
     FLUSH HOSTS;
     SQL
@@ -47,6 +81,41 @@
     ALTER USER '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ wikijs_db_password }}';
     GRANT ALL PRIVILEGES ON `{{ wikijs_db_name }}`.* TO '{{ wikijs_db_user }}'@'{{ hostvars["maxscale"].db_ip }}';
 
+    CREATE USER IF NOT EXISTS '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+    ALTER USER '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+
+    CREATE USER IF NOT EXISTS '{{ maxscale_monitor_user }}'@'%' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+    ALTER USER '{{ maxscale_monitor_user }}'@'%' IDENTIFIED BY '{{ maxscale_monitor_password }}';
+
+    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICATION CLIENT ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT PROCESS ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT RELOAD ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SUPER ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT BINLOG MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICA MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICATION SLAVE ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT REPLICATION MASTER ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+
+    GRANT SELECT ON mysql.user TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.db TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.tables_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.columns_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.procs_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.proxies_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.global_priv TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+    GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'{{ hostvars["maxscale"].db_ip }}';
+
+    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICATION CLIENT ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT PROCESS ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT RELOAD ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT SUPER ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT BINLOG MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICA MONITOR ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICATION SLAVE ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+    GRANT REPLICATION MASTER ADMIN ON *.* TO '{{ maxscale_monitor_user }}'@'%';
+
     GRANT SELECT ON mysql.user TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.db TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.tables_priv TO '{{ maxscale_monitor_user }}'@'%';
@@ -55,7 +124,6 @@
     GRANT SELECT ON mysql.proxies_priv TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.global_priv TO '{{ maxscale_monitor_user }}'@'%';
     GRANT SELECT ON mysql.roles_mapping TO '{{ maxscale_monitor_user }}'@'%';
-    GRANT SHOW DATABASES ON *.* TO '{{ maxscale_monitor_user }}'@'%';
 
     FLUSH PRIVILEGES;
     FLUSH HOSTS;

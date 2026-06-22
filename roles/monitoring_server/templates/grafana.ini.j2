@@ -1,0 +1,24 @@
+[server]
+http_addr = 0.0.0.0
+http_port = {{ grafana_port }}
+domain = mon1.infra.lab
+root_url = http://mon1.infra.lab:{{ grafana_port }}/
+
+[security]
+admin_user = {{ grafana_admin_user }}
+admin_password = {{ grafana_admin_password }}
+disable_gravatar = true
+
+[auth.ldap]
+enabled = true
+config_file = /etc/grafana/ldap.toml
+allow_sign_up = true
+
+[users]
+allow_sign_up = false
+auto_assign_org = true
+auto_assign_org_role = Viewer
+
+[log]
+mode = console
+level = info

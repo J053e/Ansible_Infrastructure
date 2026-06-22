@@ -1,0 +1,38 @@
+loki.write "default" {
+  endpoint {
+    url = "http://{{ hostvars['mon1'].mgmt_ip }}:{{ loki_port }}/loki/api/v1/push"
+  }
+}
+
+loki.relabel "journal" {
+  forward_to = [loki.write.default.receiver]
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    regex         = "(container-loki.service|alloy.service)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "systemd-journal"
+  }
+}
+
+loki.source.journal "read" {
+  forward_to = [loki.relabel.journal.receiver]
+
+  labels = {
+    host = "{{ inventory_hostname }}",
+  }
+}

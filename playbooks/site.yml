@@ -3,6 +3,8 @@
   hosts: active_infra
   become: true
   gather_facts: true
+  tags:
+    - baseline
   roles:
     - baseline
 
@@ -10,13 +12,44 @@
   hosts: admin_nodes
   become: true
   gather_facts: true
+  tags:
+    - admin_nat
   roles:
     - admin_nat
+
+- name: Configure FreeIPA server
+  hosts: identity_servers
+  become: true
+  gather_facts: true
+  tags:
+    - ipa_server
+  roles:
+    - freeipa_server
+
+- name: Configure FreeIPA policies
+  hosts: identity_servers
+  become: true
+  gather_facts: true
+  tags:
+    - ipa_policy
+  roles:
+    - freeipa_policy
+
+- name: Enroll active Linux hosts into FreeIPA
+  hosts: active_infra:!identity_servers
+  become: true
+  gather_facts: true
+  tags:
+    - ipa_client
+  roles:
+    - freeipa_client
 
 - name: Configure MariaDB Galera cluster
   hosts: database_cluster
   become: true
   gather_facts: true
+  tags:
+    - mariadb_galera
   roles:
     - mariadb_galera
 
@@ -24,6 +57,8 @@
   hosts: db1
   become: true
   gather_facts: true
+  tags:
+    - mariadb_apps
   roles:
     - mariadb_apps
 
@@ -31,6 +66,8 @@
   hosts: database_proxies
   become: true
   gather_facts: true
+  tags:
+    - maxscale
   roles:
     - maxscale
 
@@ -38,6 +75,8 @@
   hosts: load_balancers
   become: true
   gather_facts: true
+  tags:
+    - haproxy
   roles:
     - haproxy
 
@@ -45,6 +84,8 @@
   hosts: container_hosts
   become: true
   gather_facts: true
+  tags:
+    - podman_glpi
   roles:
     - podman_glpi
 
@@ -52,5 +93,34 @@
   hosts: container_hosts
   become: true
   gather_facts: true
+  tags:
+    - podman_wikijs
   roles:
     - podman_wikijs
+
+- name: Configure node exporters on all active hosts
+  hosts: active_infra
+  become: true
+  gather_facts: true
+  tags:
+    - node_exporter
+  roles:
+    - node_exporter
+
+- name: Configure log collection agents on all active hosts
+  hosts: active_infra
+  become: true
+  gather_facts: true
+  tags:
+    - alloy_agent
+  roles:
+    - alloy_agent
+
+- name: Configure monitoring server
+  hosts: monitoring_servers
+  become: true
+  gather_facts: true
+  tags:
+    - monitoring_server
+  roles:
+    - monitoring_server

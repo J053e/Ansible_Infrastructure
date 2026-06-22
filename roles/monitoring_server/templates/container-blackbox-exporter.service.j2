@@ -1,0 +1,23 @@
+[Unit]
+Description=Blackbox Exporter container
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/podman rm -f blackbox-exporter
+ExecStart=/usr/bin/podman run --name blackbox-exporter --replace \
+  --memory 128m \
+  --memory-swap 128m \
+  --cpus 0.5 \
+  --pids-limit 128 \
+  -p {{ blackbox_exporter_port }}:9115 \
+  -v {{ blackbox_config_dir }}/blackbox.yml:/etc/blackbox_exporter/config.yml:Z \
+  {{ blackbox_exporter_image }} \
+  --config.file=/etc/blackbox_exporter/config.yml
+ExecStop=/usr/bin/podman stop -t 10 blackbox-exporter
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
